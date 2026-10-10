@@ -5,3 +5,6 @@ casa.db
 casa.db.bak_*
 *.zip
 .env
+.vscode
+.nicegui
+

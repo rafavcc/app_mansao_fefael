@@ -97,6 +97,8 @@ def apply_app_theme() -> None:
         @media (max-width: 767px) {
             .casa-nav { display: none !important; }
             .casa-tabbar { display: flex !important; }
+            .chart-view .q-btn { flex: 1 1 0; min-width: 0; padding-inline: 2px; }
+            .chart-view .q-btn__content { white-space: normal; text-align: center; }
         }
 
         .q-page {

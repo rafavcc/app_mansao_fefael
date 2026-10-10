@@ -241,7 +241,7 @@ def build_balance() -> None:
                     CHART_VIEWS,
                     value="spending",
                     on_change=lambda e: set_view(e.value),
-                ).props("spread").mark("chart-view")
+                ).props("spread").classes("chart-view")
 
                 chart_area = ui.column().classes("w-full")
 
