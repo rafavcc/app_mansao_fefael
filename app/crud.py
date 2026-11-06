@@ -8,9 +8,13 @@ from app.models import (
     FAFA,
     FEFE,
     DEFAULT_FAFA_RATIO,
+    IncomeItem,
     MonthRatio,
+    Payment,
+    PlannedExpense,
     RegularCategory,
     RegularExpense,
+    SavingsItem,
     User,
     VariableCategory,
     VariableExpense,
@@ -339,7 +343,7 @@ def get_monthly_totals(
             q = q.filter(model.month == month)
         for m, payer, total in q.group_by(model.month, model.paid_by):
             totals = result.setdefault(m, empty_totals())
-            totals[key] = float(total)
+            totals[key] += float(total)
             if payer == FAFA:
                 totals["fafa_paid"] += float(total)
             elif payer == FEFE:
@@ -372,3 +376,78 @@ def get_monthly_category_totals(
                 category
             ] = float(total)
     return result
+
+# --- Household plan (single recurring plan, no month)
+
+PLAN_MODELS = {
+    "income": IncomeItem,
+    "expense": PlannedExpense,
+    "savings": SavingsItem,
+}
+
+
+def get_plan_items(db: Session, kind: str) -> list:
+    model = PLAN_MODELS[kind]
+    return db.query(model).order_by(model.id).all()
+
+
+def save_plan_item(db: Session, kind: str, data: dict, item_id: Optional[int] = None):
+    model = PLAN_MODELS[kind]
+    if item_id is None:
+        item = model(**data)
+        db.add(item)
+    else:
+        item = db.get(model, item_id)
+        if item is None:
+            return None
+        for key, value in data.items():
+            setattr(item, key, value)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def delete_plan_item(db: Session, kind: str, item_id: int) -> bool:
+    item = db.get(PLAN_MODELS[kind], item_id)
+    if item is None:
+        return False
+    db.delete(item)
+    db.commit()
+    return True
+
+
+def get_planning_categories(db: Session) -> List[str]:
+    """Union of regular and variable category names, without duplicates."""
+    names = {c.name for c in get_regular_categories(db)}
+    names |= {c.name for c in get_variable_categories(db)}
+    return sorted(names, key=str.casefold)
+
+
+# --- Payments (Fefe -> Fafa)
+
+def get_payments(db: Session) -> List[Payment]:
+    return db.query(Payment).order_by(Payment.paid_on.desc(), Payment.id.desc()).all()
+
+
+def save_payment(db: Session, data: dict, payment_id: Optional[int] = None) -> Optional[Payment]:
+    if payment_id is None:
+        payment = Payment(**data)
+        db.add(payment)
+    else:
+        payment = db.get(Payment, payment_id)
+        if payment is None:
+            return None
+        for key, value in data.items():
+            setattr(payment, key, value)
+    db.commit()
+    db.refresh(payment)
+    return payment
+
+
+def delete_payment(db: Session, payment_id: int) -> bool:
+    payment = db.get(Payment, payment_id)
+    if payment is None:
+        return False
+    db.delete(payment)
+    db.commit()
+    return True

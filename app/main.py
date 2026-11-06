@@ -24,13 +24,16 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
-    with get_session() as db:
-        crud.autofill_current_month_regular_expenses(db)
+    # Only initialize DB if not in test mode (tests use their own fixtures)
+    import os
+    if not os.environ.get("TESTING"):
+        init_db()
+        with get_session() as db:
+            crud.autofill_current_month_regular_expenses(db)
     yield
 
 
-app = FastAPI(title="Mansao Fafew", lifespan=lifespan)
+app = FastAPI(title="Mansao Fafew")  # No lifespan during tests - init_db() called manually in fixtures if needed
 
 
 @app.post("/api/variable-expense/", response_model=VariableExpenseResponse)
@@ -52,7 +55,7 @@ def list_variable_expenses(
 def remove_variable_expense(expense_id: int, db: Session = Depends(get_db)):
     if not crud.delete_variable_expense(db, expense_id):
         raise HTTPException(status_code=404, detail="Expense not found")
-    return "ok"
+    return {"ok": True}
 
 
 @app.put("/api/variable-expenses/{expense_id}", response_model=VariableExpenseResponse)
@@ -84,7 +87,7 @@ def list_regular_expense(
 def remove_regular_expense(expense_id: int, db: Session = Depends(get_db)):
     if not crud.delete_regular_expense(db, expense_id):
         raise HTTPException(status_code=404, detail="Expense not found")
-    return "ok"
+    return {"ok": True}
 
 
 @app.put("/api/regular-expense/{expense_id}", response_model=RegularExpenseResponse)
@@ -144,7 +147,6 @@ def health():
 
 # --- Secret
 
-@app.get("/api/secret")
 def _storage_secret() -> str:
     secret = os.getenv("CASA_STORAGE_SECRET")
     if not secret:

@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, CheckConstraint, UniqueConstraint
+from datetime import date, datetime, timezone
+from sqlalchemy import Column, String, Integer, Float, Boolean, Date, DateTime, ForeignKey, CheckConstraint, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -94,3 +94,53 @@ class RegularExpense(Base):
         CheckConstraint("value > 0", name="ck_reg_value"),
         UniqueConstraint("month", "year", "category_name", name="uq_reg_per_month"),
     )
+
+class IncomeItem(Base):
+    __tablename__ = "income_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    description = Column(String, nullable=False)
+    value = Column(Float, nullable=False)
+    # Gross salaries get INSS and IRRF deducted; other income (e.g. meal vouchers) is net.
+    is_gross = Column(Boolean, nullable=False, default=False, server_default="0")
+    dependents = Column(Integer, nullable=False, default=0, server_default="0")
+
+    __table_args__ = (
+        CheckConstraint("value > 0", name="ck_income_value"),
+        CheckConstraint("dependents >= 0", name="ck_income_dependents"),
+    )
+
+
+class PlannedExpense(Base):
+    __tablename__ = "planned_expenses"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    description = Column(String, nullable=False)
+    value = Column(Float, nullable=False)
+    # Name from the union of regular and variable categories, so it is not a foreign key.
+    category_name = Column(String, nullable=False)
+
+    __table_args__ = (CheckConstraint("value > 0", name="ck_planned_value"),)
+
+
+class SavingsItem(Base):
+    __tablename__ = "savings_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    description = Column(String, nullable=False)
+    value = Column(Float, nullable=False)
+
+    __table_args__ = (CheckConstraint("value > 0", name="ck_savings_value"),)
+
+
+class Payment(Base):
+    """Money Fefe transfers to Fafa; reduces the accumulated debt, even in advance."""
+    __tablename__ = "payments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    paid_on = Column(Date, nullable=False, default=date.today)
+    value = Column(Float, nullable=False)
+    method = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+
+    __table_args__ = (CheckConstraint("value > 0", name="ck_payment_value"),)

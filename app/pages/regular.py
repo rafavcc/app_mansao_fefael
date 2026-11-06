@@ -46,6 +46,7 @@ def build_regular_expenses() -> None:
                         {d: f"{d:02d}" for d in range(1, last_day + 1)},
                         value=min(current.get("day", 15), last_day),
                         label="Dia",
+                        with_input=True,
                     ).props("dense").classes("w-20")
                     value_input = money_input(
                         value=format_number_br(current["value"]) if current else "",

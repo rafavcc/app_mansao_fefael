@@ -1,4 +1,4 @@
-from app.database import get_session, init_db, transaction
+from app.database import get_session, init_db
 from app.crud import *
 
 VARIABLE_CATEGORIES = sorted(
@@ -32,7 +32,7 @@ REGULAR_CATEGORIES = sorted(
 def seed():
     init_db() # Initiate the DB
 
-    with transaction() as db:
+    with get_session() as db:
         existing_users = {u.name for u in get_users(db)}
         if "FAFA" not in existing_users:
             create_user(db, name = "FAFA", full_name = "Rafael Viegas")

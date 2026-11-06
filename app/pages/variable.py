@@ -36,7 +36,7 @@ class ExpenseForm:
                 ui.button(f"R$ {quick}", on_click=lambda q=quick: self.value.set_value(format_number_br(q))) \
                     .props("flat dense no-caps")
 
-        self.category = ui.select(categories, label="Grupo", value=values.get("category_name")) \
+        self.category = ui.select(categories, label="Grupo", value=values.get("category_name"), with_input=True) \
             .classes("w-full").mark("category")
 
         with ui.row().classes("items-center gap-3"):

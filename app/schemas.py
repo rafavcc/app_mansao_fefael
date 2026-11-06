@@ -1,10 +1,15 @@
 import calendar
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional
-from datetime import date, datetime
+from datetime import datetime
 
 
 class ExpenseDate(BaseModel):
+    @field_validator("notes", check_fields=False)
+    @classmethod
+    def _strip_notes(cls, value):
+        return value.strip() or None if value is not None else None
+
     @model_validator(mode="after")
     def _check_day_exists(self):
         last_day = calendar.monthrange(self.year, self.month)[1]

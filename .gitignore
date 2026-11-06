@@ -1,10 +1,33 @@
+# Python
 venv/
 __pycache__/
-*.pyc
-casa.db
-casa.db.bak_*
-*.zip
-.env
-.vscode
-.nicegui
+*.py[cod]
+*$py.class
+*.so
 
+# Database
+casa.db
+*.db
+
+# Virtual environments
+.env
+.venv/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

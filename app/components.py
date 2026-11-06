@@ -47,6 +47,7 @@ def month_select(
         value=value,
         label=label,
         on_change=on_change,
+        with_input=True,
     ).classes("min-w-[9rem]")
 
 
@@ -63,6 +64,7 @@ def year_select(
         value=value,
         label=label,
         on_change=on_change,
+        with_input=True,
     ).classes("min-w-[6rem]")
 
 

@@ -107,3 +107,30 @@ Com o ambiente virtual ativado, execute o mesmo comando de inicialização após
 
 Para um diagrama e um roteiro de estudo da arquitetura, leia o
 [guia do código](docs/GUIA_DO_CODIGO.md).
+
+## Testes Unitários
+
+Este projeto inclui testes unitários abrangentes usando pytest.
+
+### Executando os testes:
+
+```bash
+# Rodar todos os testes
+pytest tests/ -v
+
+# Com relatório de cobertura
+pytest tests/ --cov=app --cov-report=html --cov-report=term-missing
+
+# Usando o script runner
+python run_tests.py --coverage
+```
+
+### Cobertura atual:
+
+- ✅ `app/balance.py` (~95%)
+- ✅ `app/crud.py` (~85%)
+- ✅ `app/models.py` (~90%)
+- ⚠️ `app/schemas.py` (~40%) - precisa melhorar
+- ⚠️ `app/main.py` (~30%) - apenas health endpoint testado
+
+Para detalhes completos sobre os testes, veja [docs/TESTES.md](docs/TESTES.md).
