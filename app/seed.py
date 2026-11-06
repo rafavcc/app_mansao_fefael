@@ -1,10 +1,8 @@
-import sys
-sys.path.insert(0, ".")
-
 from app.database import get_session, init_db
 from app.crud import *
 
-VARIABLE_CATEGORIES = [
+VARIABLE_CATEGORIES = sorted(
+    (
     "Carro",     # car-related (gas, maintenance, parking)
     "Casa",      # home supplies
     "Comida",    # groceries and food
@@ -17,23 +15,23 @@ VARIABLE_CATEGORIES = [
     "Tomtom",    # nosso tomtomzinho
     "Bacana",    # treats / nice things
     "Viagem",    # travel
-]
+    )
+)
 
-VARIABLE_CATEGORIES.sort()
-
-REGULAR_CATEGORIES = [
+REGULAR_CATEGORIES = sorted(
+    (
     "Aluguel",           # rent
     "Internet",          # internet bill
     "Cond",              # condominium fee
     "Cemig",             # electricity bill
     "ConsorcioMG",       # car consortium payment
     "IPTU",              # property tax
-]
-
-REGULAR_CATEGORIES.sort()
+    )
+)
 
 def seed():
     init_db() # Initiate the DB
+
     with get_session() as db:
         existing_users = {u.name for u in get_users(db)}
         if "FAFA" not in existing_users:

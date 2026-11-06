@@ -1,65 +1,94 @@
+from datetime import date
 from nicegui import ui
-from app.balance import calculate_monthly_balance
+
+from app.balance import calculate_month_detail
+from app.components import (
+    change_hint,
+    kpi_card,
+    month_select,
+    person_split,
+    settlement_banner,
+    year_select,
+)
 from app.database import get_session
-from datetime import datetime
-from app.theme import card_classes, page_container
+from app.formatting import format_brl
+from app.theme import page_container
 
 
 def build_home() -> None:
-    now = datetime.now()
+    today = date.today()
 
     with page_container():
-        ui.label("Casa Fafa & Fefe").classes("casa-page-title text-2xl font-bold")
+        ui.label("Casa Fafa & Fefe").classes(
+            "casa-page-title text-2xl font-bold"
+        )
 
-        with ui.row().classes("casa-filter gap-4 items-center w-full"):
-            month_select = ui.select(
-                options={i: f"{i:02d} - {datetime(2000, i, 1).strftime('%b')}" for i in range(1, 13)},
-                value=now.month,
-            ).classes("w-32")
-            year_input = ui.number(value=now.year, min=2020, max=2030).classes("w-24")
-            ui.button("Ver", icon="bar_chart", on_click=lambda: refresh()).props("unelevated no-caps")
+        with ui.row().classes("casa-filter gap-3 items-center w-full"):
+            month = month_select(
+                today.month,
+                on_change=lambda: refresh(),
+            ).mark("home-month")
 
-        balance_container = ui.column().classes("w-full")
+            year = year_select(
+                today.year,
+                on_change=lambda: refresh(),
+            ).mark("home-year")
 
-        def refresh():
-            balance_container.clear()
-            with balance_container:
-                # FIX #4: context manager guarantees session is closed even on error
-                with get_session() as db:
-                    bal = calculate_monthly_balance(db, month_select.value, int(year_input.value))
+        with ui.element("div").classes(
+            "grid grid-cols-2 gap-3 w-full"
+        ):
+            ui.button(
+                "Novo gasto",
+                icon="add_circle",
+                on_click=lambda: ui.navigate.to("/variable"),
+            ).props("unelevated no-caps size=lg").classes("w-full")
 
-                with ui.row().classes("gap-4 w-full"):
-                    with ui.card().classes(card_classes("flex-1")):
-                        ui.label("Total").classes("text-sm casa-muted")
-                        ui.label(f"R$ {bal['total_expenses']:,.2f}").classes("text-2xl font-bold")
-                    with ui.card().classes(card_classes("flex-1")):
-                        ui.label("Fafa deve pagar").classes("text-sm casa-muted")
-                        ui.label(f"R$ {bal['fafa_should_pay']:,.2f}").classes("text-2xl font-bold")
-                    with ui.card().classes(card_classes("flex-1")):
-                        ui.label("Fefe deve pagar").classes("text-sm casa-muted")
-                        ui.label(f"R$ {bal['fefe_should_pay']:,.2f}").classes("text-2xl font-bold")
+            ui.button(
+                "Gastos fixos",
+                icon="event_repeat",
+                on_click=lambda: ui.navigate.to("/regular"),
+            ).props("outline no-caps size=lg").classes("w-full")
 
-                with ui.row().classes("gap-4 w-full mt-4"):
-                    with ui.card().classes(card_classes("flex-1")):
-                        ui.label(f"Fafa pagou: R$ {bal['fafa_paid']:,.2f}").classes("text-sm")
-                        color = "text-green-600" if bal['balance'] >= 0 else "text-red-600"
-                        ui.label(f"Diferença: R$ {bal['balance']:,.2f}").classes(f"font-bold {color}")
-                    with ui.card().classes(card_classes("flex-1")):
-                        ui.label(f"Fefe pagou: R$ {bal['fefe_paid']:,.2f}").classes("text-sm")
-                        diff = -bal['balance']
-                        color = "text-green-600" if diff >= 0 else "text-red-600"
-                        ui.label(f"Diferença: R$ {diff:,.2f}").classes(f"font-bold {color}")
+        content = ui.column().classes("w-full gap-4")
 
-                with ui.card().classes(card_classes("w-full mt-4")):
-                    if bal['balance'] > 0:
-                        ui.label(f"Fefe deve R$ {bal['balance']:,.2f} para Fafa").classes("text-lg")
-                    elif bal['balance'] < 0:
-                        ui.label(f"Fafa deve R$ {-bal['balance']:,.2f} para Fefe").classes("text-lg")
-                    else:
-                        ui.label("Contas iguais este mês!").classes("text-lg text-green-600")
+        ui.button(
+            "Ver todos os meses",
+            icon="calendar_month",
+            on_click=lambda: ui.navigate.to("/balance"),
+        ).props("flat no-caps").classes("self-center")
 
-                ui.label(
-                    f"Ratio: Fafa {bal['fafa_ratio']*100:.1f}% / Fefe {bal['fefe_ratio']*100:.1f}%"
-                ).classes("text-sm casa-muted mt-2")
+    def refresh() -> None:
+        with get_session() as db:
+            detail = calculate_month_detail(
+                db,
+                month.value,
+                int(year.value),
+            )
 
-        refresh()
+        content.clear()
+
+        with content:
+            hint, hint_classes = change_hint(detail)
+
+            with ui.element("div").classes(
+                "grid grid-cols-1 sm:grid-cols-3 gap-3 w-full"
+            ):
+                kpi_card(
+                    "Total do mês",
+                    format_brl(detail["total_expenses"]),
+                    hint,
+                    hint_classes,
+                )
+                kpi_card(
+                    "Variável",
+                    format_brl(detail["variable_total"]),
+                )
+                kpi_card(
+                    "Fixo",
+                    format_brl(detail["regular_total"]),
+                )
+
+            settlement_banner(detail)
+            person_split(detail)
+
+    refresh()

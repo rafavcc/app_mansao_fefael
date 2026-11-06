@@ -26,8 +26,8 @@ variáveis e fixos e calculando a divisão mensal entre Fafa e Fefe.
 Clone o repositório e entre na pasta do projeto:
 
 ```bash
-git clone https://github.com/rafavcc/app_casa_fafa_fefe.git
-cd app_casa_fafa_fefe
+git clone https://github.com/rafavcc/app_mansao_fefael.git
+cd app_mansao_fefael
 ```
 
 Crie e ative um ambiente virtual:
@@ -62,7 +62,7 @@ Inicie a aplicação:
 uvicorn app.main:app --reload
 ```
 
-Abra [http://localhost:8080](http://localhost:8080) no navegador.
+Abra [http://localhost:8888](http://localhost:8888) no navegador.
 
 ## Banco de dados e privacidade
 
@@ -107,3 +107,30 @@ Com o ambiente virtual ativado, execute o mesmo comando de inicialização após
 
 Para um diagrama e um roteiro de estudo da arquitetura, leia o
 [guia do código](docs/GUIA_DO_CODIGO.md).
+
+## Testes Unitários
+
+Este projeto inclui testes unitários abrangentes usando pytest.
+
+### Executando os testes:
+
+```bash
+# Rodar todos os testes
+pytest tests/ -v
+
+# Com relatório de cobertura
+pytest tests/ --cov=app --cov-report=html --cov-report=term-missing
+
+# Usando o script runner
+python run_tests.py --coverage
+```
+
+### Cobertura atual:
+
+- ✅ `app/balance.py` (~95%)
+- ✅ `app/crud.py` (~85%)
+- ✅ `app/models.py` (~90%)
+- ⚠️ `app/schemas.py` (~40%) - precisa melhorar
+- ⚠️ `app/main.py` (~30%) - apenas health endpoint testado
+
+Para detalhes completos sobre os testes, veja [docs/TESTES.md](docs/TESTES.md).

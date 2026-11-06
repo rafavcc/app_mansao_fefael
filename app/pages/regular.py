@@ -1,90 +1,95 @@
+import calendar
+from datetime import date
+
 from nicegui import ui
-from datetime import datetime
-from app.database import get_session   # FIX #4
+
 from app import crud
+from app.components import money_input, month_select, year_select
+from app.database import get_session
+from app.formatting import format_brl, format_number_br, parse_money
+from app.models import FAFA
 from app.theme import card_classes, page_container
 
+
 def build_regular_expenses() -> None:
-    now = datetime.now()
+    today = date.today()
 
     with page_container():
-        ui.label("Gastos Fixos").classes("casa-page-title text-2xl font-bold")
+        with ui.column().classes("gap-0"):
+            ui.label("Gastos Fixos").classes("casa-page-title text-2xl font-bold")
+            ui.label("Sempre pagos por Fafa.").classes("text-sm casa-muted")
 
-        with ui.row().classes("casa-filter gap-4 items-center w-full"):
-            month_select = ui.select(
-                options={i: f"{i:02d} - {datetime(2000, i, 1).strftime('%b')}" for i in range(1, 13)},
-                value=now.month,
-            ).classes("w-32")
-            year_input = ui.number(value=now.year, min=2020, max=2030).classes("w-24")
+        with ui.row().classes("casa-filter gap-3 items-center w-full"):
+            month = month_select(today.month, on_change=lambda: build_form())
+            year = year_select(today.year, on_change=lambda: build_form())
 
         form_container = ui.column().classes("w-full")
-        result_label = ui.label("")
 
-        def build_form():
-            form_container.clear()
+    def build_form() -> None:
+        selected_month, selected_year = month.value, int(year.value)
+        last_day = calendar.monthrange(selected_year, selected_month)[1]
+        with get_session() as db:
+            categories = [c.name for c in crud.get_regular_categories(db)]
+            existing = {
+                e.category_name: {"id": e.id, "day": e.day, "value": e.value}
+                for e in crud.get_regular_expenses(db, month=selected_month, year=selected_year)
+            }
 
-            # FIX #4: context manager
-            with get_session() as db:
-                categories = crud.get_regular_categories(db)
-                existing = {
-                    e.category_name: e
-                    for e in crud.get_regular_expenses(
-                        db, month=month_select.value, year=int(year_input.value)
-                    )
-                }
+        rows = {}
+        form_container.clear()
+        with form_container, ui.card().classes(card_classes("w-full p-3 gap-0")):
+            for name in categories:
+                current = existing.get(name, {})
+                with ui.row().classes("w-full items-center gap-2 py-2 border-b flex-wrap"):
+                    ui.label(name).classes("font-medium w-full sm:w-auto sm:flex-1")
+                    day_input = ui.select(
+                        {d: f"{d:02d}" for d in range(1, last_day + 1)},
+                        value=min(current.get("day", 15), last_day),
+                        label="Dia",
+                        with_input=True,
+                    ).props("dense").classes("w-20")
+                    value_input = money_input(
+                        value=format_number_br(current["value"]) if current else "",
+                    ).props("dense").classes("flex-1 sm:flex-none sm:w-32").mark(f"value-{name}")
+                    rows[name] = (day_input, value_input)
 
-            inputs = {}
+            def save_all() -> None:
+                parsed = {}
+                invalid = []
+                for name, (_, value_input) in rows.items():
+                    raw = (value_input.value or "").strip()
+                    value = parse_money(raw) if raw else 0.0
+                    if value is None or value < 0:
+                        invalid.append(name)
+                        continue
+                    parsed[name] = value
+                if invalid:
+                    ui.notify(f"Valor inválido: {', '.join(invalid)}", type="warning")
+                    return
 
-            with form_container:          # ← esta linha estava faltando
+                with get_session() as db:
+                    for name, (day_input, _) in rows.items():
+                        if parsed[name] == 0:
+                            if name in existing:
+                                crud.delete_regular_expense(db, existing[name]["id"])
+                            continue
+                        crud.upsert_regular_expense(db, {
+                            "day": int(day_input.value),
+                            "month": selected_month,
+                            "year": selected_year,
+                            "value": parsed[name],
+                            "paid_by": FAFA,
+                            "category_name": name,
+                        })
 
-                with ui.card().classes(card_classes("w-full")):
-                    with ui.row().classes("font-bold text-sm border-b pb-2 w-full"):
-                        ui.label("Categoria").classes("flex-1")
-                        ui.label("Dia").classes("w-16")
-                        ui.label("Valor (R$)").classes("w-32")
-                        ui.label("Pago por").classes("w-24")
+                ui.notify("Salvo!", type="positive")
+                build_form()
 
-                    for cat in categories:
-                        exp = existing.get(cat.name)
-                        with ui.row().classes("items-center gap-2 py-1 w-full"):
-                            ui.label(cat.name).classes("flex-1 text-sm")
-                            day_input = ui.number(
-                                value=exp.day if exp else 15, min=1, max=31
-                            ).classes("w-16").props("dense")
-                            value_input = ui.number(
-                                value=exp.value if exp else 0.0, min=0.0, step=1.0, format="%.2f"
-                            ).classes("w-32").props("dense")
-                            paid_input = ui.select(
-                                options=["FAFA", "FEFE"],
-                                value=exp.paid_by if exp else "FAFA",
-                            ).classes("w-24").props("dense")
-                            inputs[cat.name] = (day_input, value_input, paid_input)
+            total = sum(e["value"] for e in existing.values())
+            with ui.row().classes("w-full items-center justify-between mt-3 gap-2"):
+                ui.label(f"Total: {format_brl(total)}").classes("text-lg font-bold")
+            with ui.row().classes("gap-2"):
+                ui.button("Desfazer", icon="undo", on_click=build_form).props("flat no-caps")
+                ui.button("Salvar tudo", icon="save", on_click=save_all).props("unelevated no-caps").mark("save")
 
-                    def save_all():
-                        # FIX #4: context manager
-                        with get_session() as db:
-                            for cat_name, (day_in, val_in, paid_in) in inputs.items():
-                                if val_in.value and val_in.value > 0:
-                                    crud.upsert_regular_expense(db, {
-                                        "day": int(day_in.value),
-                                        "month": month_select.value,
-                                        "year": int(year_input.value),
-                                        "value": float(val_in.value),
-                                        "paid_by": paid_in.value,
-                                        "category_name": cat_name,
-                                    })
-                        result_label.set_text("✅ Salvo!")
-                        result_label.classes("text-green-600 mt-2")
-
-                    with ui.row().classes("gap-2 mt-4"):
-                        ui.button("Salvar Tudo", on_click=save_all, icon="save").props("unelevated no-caps")
-                        ui.button("Recarregar", on_click=build_form, icon="refresh").props("flat no-caps")
-
-                    existing_values = [v for v in existing.values() if v and v.value]
-                    if existing_values:
-                        total = sum(v.value for v in existing_values)
-                        ui.label(f"Total: R$ {total:,.2f}").classes("text-lg font-bold mt-2")
-
-        month_select.on("update:model-value", lambda: build_form())
-        year_input.on("update:model-value", lambda: build_form())
-        build_form()
+    build_form()
