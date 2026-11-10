@@ -5,16 +5,11 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from app.database import engine
+from app.database import BACKUP_DIR, DB_PATH
 
 logger = logging.getLogger(__name__)
 
-BACKUP_DIR = Path("db_backup")
 KEEP_DAYS = None  # backups older than this many days are removed; None keeps everything
-
-
-def _db_path() -> Path:
-    return Path(engine.url.database).resolve()
 
 
 def backup_path(day: date, backup_dir: Path = BACKUP_DIR) -> Path:
@@ -32,7 +27,7 @@ def create_backup(
     app is writing. The same day's file is replaced. Returns None when there is
     no database to copy.
     """
-    db_file = db_file or _db_path()
+    db_file = db_file or DB_PATH
     if not db_file.exists() or db_file.stat().st_size == 0:
         logger.warning("Backup skipped: %s does not exist or is empty", db_file)
         return None
