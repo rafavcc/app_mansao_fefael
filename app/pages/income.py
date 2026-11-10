@@ -134,7 +134,7 @@ def build_income() -> None:
         today = date.today()
         with get_session() as db:
             income = crud.get_plan_items(db, "income")
-            expenses = crud.get_plan_items(db, "expense")
+            expenses = sorted(crud.get_plan_items(db, "expense"), key=lambda e: e.value, reverse=True)
             savings = crud.get_plan_items(db, "savings")
             plan = calculate_plan(db, today.month, today.year)
 
