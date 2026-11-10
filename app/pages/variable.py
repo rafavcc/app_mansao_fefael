@@ -81,7 +81,7 @@ def build_variable_expenses() -> None:
     today = date.today()
     with get_session() as db:
         categories = [c.name for c in crud.get_variable_categories(db)]
-    top_places = crud.get_top_places(db)
+        top_places = crud.get_top_places(db)
 
     last_category = app.storage.user.get(LAST_CATEGORY_KEY)
 
