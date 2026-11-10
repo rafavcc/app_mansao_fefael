@@ -7,6 +7,7 @@ from app.database import get_session
 from app.pages.balance import build_balance
 from app.pages.home import build_home
 from app.pages.income import build_income
+from app.pages.settings import build_settings
 from app.pages.payments import build_payments
 from app.pages.regular import build_regular_expenses
 from app.pages.variable import build_variable_expenses
@@ -21,6 +22,7 @@ NAV_ITEMS = [
     ("balance", "Balanço", "account_balance_wallet", "/balance"),
     ("income", "Planejamento", "savings", "/income"),
     ("payments", "Pagamentos", "payments", "/payments"),
+    ("settings", "Config.", "settings", "/settings"),
 ]
 
 
@@ -83,3 +85,8 @@ def register_pages() -> None:
     def page_payments():
         layout("Pagamentos", "payments")
         build_payments()
+
+    @ui.page("/settings", title="Configurações")
+    def page_settings():
+        layout("Configurações", "settings")
+        build_settings()

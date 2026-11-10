@@ -423,6 +423,75 @@ def get_planning_categories(db: Session) -> List[str]:
     return sorted(names, key=str.casefold)
 
 
+class CategoryError(ValueError):
+    """The category cannot be removed as requested."""
+
+
+_CATEGORY_KINDS = {
+    "variable": (VariableCategory, VariableExpense),
+    "regular": (RegularCategory, RegularExpense),
+}
+
+
+def count_category_expenses(db: Session, kind: str, name: str) -> int:
+    _, expense_model = _CATEGORY_KINDS[kind]
+    return db.query(expense_model).filter(expense_model.category_name == name).count()
+
+
+def delete_category(db: Session, kind: str, name: str, replacement: Optional[str]) -> dict:
+    """Remove a category, moving its expenses to `replacement` (required when it has any).
+
+    Everything happens in one transaction: on any failure nothing changes.
+    Regular expenses are unique per (month, year, category), so when the replacement
+    already has an entry in that month the values are added together into that entry.
+    Planning items follow the replacement only when the name no longer exists in either list.
+    """
+    category_model, expense_model = _CATEGORY_KINDS[kind]
+    if db.get(category_model, name) is None:
+        raise CategoryError("Categoria não encontrada.")
+    count = count_category_expenses(db, kind, name)
+    planned = db.query(PlannedExpense).filter(PlannedExpense.category_name == name).count()
+    if (count or planned) and not replacement:
+        raise CategoryError("Escolha a categoria que receberá as despesas existentes.")
+    if replacement:
+        if replacement == name:
+            raise CategoryError("A nova categoria deve ser diferente da removida.")
+        if db.get(category_model, replacement) is None:
+            raise CategoryError("Categoria de destino inválida.")
+
+    moved = merged = 0
+    try:
+        if replacement:
+            for expense in db.query(expense_model).filter(expense_model.category_name == name).all():
+                if kind == "regular":
+                    target = db.query(RegularExpense).filter(
+                        RegularExpense.month == expense.month,
+                        RegularExpense.year == expense.year,
+                        RegularExpense.category_name == replacement,
+                    ).first()
+                    if target is not None:
+                        target.value += expense.value
+                        db.delete(expense)
+                        merged += 1
+                        continue
+                expense.category_name = replacement
+                moved += 1
+            db.flush()
+        db.delete(db.get(category_model, name))
+        db.flush()
+        other_kind = "regular" if kind == "variable" else "variable"
+        still_exists = db.get(_CATEGORY_KINDS[other_kind][0], name) is not None
+        if replacement and not still_exists:
+            db.query(PlannedExpense).filter(PlannedExpense.category_name == name).update(
+                {"category_name": replacement}
+            )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {"moved": moved, "merged": merged}
+
+
 # --- Payments (Fefe -> Fafa)
 
 def get_payments(db: Session) -> List[Payment]:
