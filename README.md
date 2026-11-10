@@ -1,4 +1,4 @@
-# Mansão Fefael
+# Mansao Fefael
 
 Aplicação web simples para acompanhar as despesas da casa, separando gastos
 variáveis e fixos e calculando a divisão mensal entre Fafa e Fefe.

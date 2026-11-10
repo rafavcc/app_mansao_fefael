@@ -1,4 +1,4 @@
-# Guia do código — Mansão Fefael
+# Guia do código — Mansao Fefael
 
 Este guia descreve o código que está no repositório hoje. Use-o para saber por
 onde seguir uma funcionalidade e em qual arquivo fazer cada tipo de mudança.

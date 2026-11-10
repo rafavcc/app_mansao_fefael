@@ -1,8 +1,8 @@
-# Testes Unitários - Mansão Fefael
+# Testes Unitários - Mansao Fefael
 
 ## Visão Geral
 
-Este diretório contém testes unitários para o projeto Mansão Fefael usando pytest.
+Este diretório contém testes unitários para o projeto Mansao Fefael usando pytest.
 
 ## Estrutura de Testes
 

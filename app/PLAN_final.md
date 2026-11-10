@@ -1,4 +1,4 @@
-# Casa Fafa & Fefe — Household Expense Tracker
+# Mansao Fefael — Household Expense Tracker
 
 > **For Hermes:** Use subagent-driven-development skill to implement this plan task-by-task.
 
@@ -1076,7 +1076,7 @@ async def lifespan(app: FastAPI):
 
 
 # Pass lifespan= to FastAPI so it calls our startup/shutdown logic
-app = FastAPI(title="Casa Fafa & Fefe", lifespan=lifespan)
+app = FastAPI(title="Mansao Fefael", lifespan=lifespan)
 
 
 # ── Variable Expenses ──────────────────────────────────
@@ -1220,7 +1220,7 @@ def build_home() -> None:
     now = datetime.now()
 
     with ui.column().classes("w-full max-w-3xl mx-auto p-4"):
-        ui.label("🏠 Casa Fafa & Fefe").classes("text-2xl font-bold")
+        ui.label("🏠 Mansao Fefael").classes("text-2xl font-bold")
 
         with ui.row().classes("gap-4 items-center mt-4"):
             month_select = ui.select(

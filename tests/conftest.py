@@ -1,5 +1,5 @@
 """
-Pytest configuration and fixtures for Mansão Fefael tests.
+Pytest configuration and fixtures for Mansao Fefael tests.
 Uses SQLite in-memory database with separate connection per test.
 
 IMPORTANT: This file must NOT import any app modules at the top level,
