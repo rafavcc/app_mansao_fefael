@@ -77,7 +77,8 @@ def edit_variable_expense(expense_id: int, data: VariableExpenseCreate, db: Sess
 
 @app.post("/api/regular-expense/", response_model=RegularExpenseResponse)
 def add_regular_expense(data: RegularExpenseCreate, db: Session = Depends(get_db)):
-    return crud.create_regular_expense(db, data.model_dump())
+    # Upsert: one entry per category and month, so a repeated POST updates instead of failing with a 500.
+    return crud.upsert_regular_expense(db, data.model_dump())
 
 
 @app.get("/api/regular-expense/", response_model=list[RegularExpenseResponse])
