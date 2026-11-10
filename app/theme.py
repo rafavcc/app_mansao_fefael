@@ -6,8 +6,7 @@ def apply_app_theme() -> None:
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="default">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-        <meta name="theme-color" content="#161f2f" media="(prefers-color-scheme: light)">
-        <meta name="theme-color" content="#0f141b" media="(prefers-color-scheme: dark)">
+        <meta name="theme-color" content="#ffffff">
         <script>
         window.casaTheme = {
             current() {
@@ -17,8 +16,12 @@ def apply_app_theme() -> None:
             },
             apply(theme) {
                 const currentTheme = theme || window.casaTheme.current();
-                if (window.Quasar) Quasar.dark.set(currentTheme === "dark");
                 document.documentElement.dataset.theme = currentTheme;
+                // Browser UI color (Chrome/Brave on Android) follows the chosen theme, not only the OS one.
+                const meta = document.querySelector('meta[name="theme-color"]');
+                if (meta) meta.content = currentTheme === "dark" ? "#16222f" : "#ffffff";
+                // Quasar's plugin is `Dark` (capital D); it is missing until Quasar has loaded.
+                if (window.Quasar && Quasar.Dark) Quasar.Dark.set(currentTheme === "dark");
             },
             toggle() {
                 localStorage.setItem("casa-theme", window.casaTheme.current() === "dark" ? "light" : "dark");
@@ -26,8 +29,8 @@ def apply_app_theme() -> None:
             }
         };
         window.casaTheme.apply();
-        window.addEventListener("load", window.casaTheme.apply);
-        window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", window.casaTheme.apply);
+        window.addEventListener("load", () => window.casaTheme.apply());
+        window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => window.casaTheme.apply());
         </script>
         <style>
         :root {
@@ -41,6 +44,9 @@ def apply_app_theme() -> None:
             --casa-accent: #0969da;
             --casa-accent-soft: #ddf4ff;
         }
+
+        /* Makes native controls (date picker, scrollbars, autofill) follow the theme in Chrome/Brave. */
+        html { color-scheme: var(--color-scheme); }
 
         html[data-theme="dark"] {
             --color-scheme: dark;
