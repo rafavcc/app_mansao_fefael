@@ -41,6 +41,18 @@ SALDO_TOOLTIP_JS = """(p) => {
     return p[0].name + "<br>" + text;
 }"""
 
+SPENDING_TOOLTIP_JS = """(params) => {
+    const brl = (v) => "R$ " + Number(v).toLocaleString("pt-BR", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    const total = params.reduce((sum, p) => sum + Number(p.value || 0), 0);
+    const rows = params.map((p) =>
+        `<div style="display:flex;justify-content:space-between;gap:16px">` +
+        `<span>${p.marker}${p.seriesName}</span><b>${brl(p.value)}</b></div>`
+    ).join("");
+    return `${params[0].name}${rows}` +
+        `<div style="display:flex;justify-content:space-between;gap:16px;margin-top:4px;padding-top:4px;` +
+        `border-top:1px solid rgba(138,148,166,0.4)"><span>Total</span><b>${brl(total)}</b></div>`;
+}"""
+
 
 def _labels(months: list[dict]) -> list[str]:
     return [month_name(month["month"], short=True) for month in months]
@@ -48,6 +60,7 @@ def _labels(months: list[dict]) -> list[str]:
 
 def spending_chart(months: list[dict]) -> dict:
     return base_chart(
+        tooltip={"trigger": "axis", "confine": True, ":formatter": SPENDING_TOOLTIP_JS},
         xAxis=category_axis(_labels(months)),
         yAxis=value_axis(),
         series=[
