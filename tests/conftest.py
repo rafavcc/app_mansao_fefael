@@ -96,6 +96,20 @@ def db_session(test_db):
         db.close()
 
 
+def _seed_reference_data(session_factory):
+    """Users and categories the API tests expect to exist, same lists the real seed uses."""
+    from app import crud
+    from app.seed import REGULAR_CATEGORIES, VARIABLE_CATEGORIES
+
+    with session_factory() as db:
+        crud.create_user(db, "FAFA", "Rafael Viegas")
+        crud.create_user(db, "FEFE", "Fernanda Lages")
+        for name in VARIABLE_CATEGORIES:
+            crud.create_variable_category(db, name)
+        for name in REGULAR_CATEGORIES:
+            crud.create_regular_category(db, name)
+
+
 @pytest.fixture(scope="function")
 def client(test_db):
     """Create a FastAPI test client with our test database."""
@@ -120,6 +134,8 @@ def client(test_db):
     # Set the dependency override in the app BEFORE creating TestClient
     main.app.dependency_overrides[original_get_db] = override_get_db
     
+    _seed_reference_data(test_SessionLocal)
+
     # Create TestClient for FastAPI - it will use our overridden get_db
     test_client = TestClient(main.app)
     
@@ -162,35 +178,6 @@ def client_with_session(test_db):
     # Clean up the override after test and restore original references
     main.app.dependency_overrides.clear()
     database.get_db = original_get_db
-
-
-@pytest.fixture(scope="function")
-def debug_database_info(test_db):
-    """Debug fixture to check database state."""
-    from app import models
-    
-    test_engine, test_SessionLocal = test_db
-    
-    # Check if tables exist
-    inspector = inspect(test_engine)
-    table_names = inspector.get_table_names()
-    
-    print(f"DEBUG: Tables in test engine: {table_names}")
-    
-    # Try to query a table
-    try:
-        result = test_SessionLocal().execute(text("SELECT name FROM variable_categories LIMIT 1"))
-        rows = result.fetchall()
-        print(f"DEBUG: Found {len(rows)} rows in variable_categories")
-    except Exception as e:
-        print(f"DEBUG: Error querying table: {e}")
-    
-    yield
-    
-    # Verify tables still exist
-    inspector = inspect(test_engine)
-    table_names = inspector.get_table_names()
-    print(f"DEBUG: Tables after test: {table_names}")
 
 
 @pytest.fixture(scope="function")

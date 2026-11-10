@@ -87,7 +87,7 @@ class TestVariableExpensesEndpoint:
             "category_name": "Comida"
         }
         
-        response = client.post("/api/variable-expenses", json=data)
+        response = client.post("/api/variable-expense/", json=data)
         
         assert response.status_code == 200
         expense = response.json()
@@ -109,10 +109,10 @@ class TestVariableExpensesEndpoint:
             "category_name": "Comida"
         }
         
-        client.post("/api/variable-expenses", json=data)
+        client.post("/api/variable-expense/", json=data)
         
         # Now list them
-        response = client.get("/api/variable-expenses")
+        response = client.get("/api/variable-expenses/")
         
         assert response.status_code == 200
         expenses = response.json()
@@ -133,10 +133,10 @@ class TestVariableExpensesEndpoint:
             "category_name": "Comida"
         }
         
-        client.post("/api/variable-expenses", json=data)
+        client.post("/api/variable-expense/", json=data)
         
         # Filter by month
-        response = client.get("/api/variable-expenses?month=5&year=2026")
+        response = client.get("/api/variable-expenses/?month=5&year=2026")
         
         assert response.status_code == 200
         expenses = response.json()
@@ -157,7 +157,7 @@ class TestVariableExpensesEndpoint:
             "category_name": "Comida"
         }
         
-        create_response = client.post("/api/variable-expenses", json=data)
+        create_response = client.post("/api/variable-expense/", json=data)
         expense_id = create_response.json()["id"]
         
         # Delete it
@@ -186,7 +186,7 @@ class TestRegularExpensesEndpoint:
             "category_name": "Aluguel"
         }
         
-        response = client.post("/api/regular-expenses", json=data)
+        response = client.post("/api/regular-expense/", json=data)
         
         assert response.status_code == 200
         expense = response.json()
@@ -206,7 +206,7 @@ class TestRegularExpensesEndpoint:
             "category_name": "Aluguel"
         }
         
-        client.post("/api/regular-expenses", json=data1)
+        client.post("/api/regular-expense/", json=data1)
         
         # Update with same category+month
         data2 = {
@@ -218,7 +218,7 @@ class TestRegularExpensesEndpoint:
             "category_name": "Aluguel"
         }
         
-        update_response = client.post("/api/regular-expenses", json=data2)
+        update_response = client.post("/api/regular-expense/", json=data2)
         expense = update_response.json()
         
         assert expense["value"] == 2000.00
@@ -235,10 +235,10 @@ class TestRegularExpensesEndpoint:
             "category_name": "Aluguel"
         }
         
-        client.post("/api/regular-expenses", json=data)
+        client.post("/api/regular-expense/", json=data)
         
         # List them
-        response = client.get("/api/regular-expenses")
+        response = client.get("/api/regular-expense/")
         
         assert response.status_code == 200
         expenses = response.json()
@@ -340,7 +340,7 @@ class TestAPIValidation:
             "category_name": "Comida"
         }
         
-        response = client.post("/api/variable-expenses", json=data)
+        response = client.post("/api/variable-expense/", json=data)
         
         assert response.status_code == 422  # Validation error
     
@@ -356,7 +356,7 @@ class TestAPIValidation:
             "category_name": "Comida"
         }
         
-        response = client.post("/api/variable-expenses", json=data)
+        response = client.post("/api/variable-expense/", json=data)
         
         assert response.status_code == 422
     
@@ -372,7 +372,7 @@ class TestAPIValidation:
             "category_name": "Comida"
         }
         
-        response = client.post("/api/variable-expenses", json=data)
+        response = client.post("/api/variable-expense/", json=data)
         
         assert response.status_code == 422
     
