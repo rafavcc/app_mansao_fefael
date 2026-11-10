@@ -6,12 +6,34 @@ IMPORTANT: This file must NOT import any app modules at the top level,
 as that would trigger FastAPI initialization before fixtures run.
 All imports are done inside fixture functions when needed.
 """
+import os
+import shutil
+import tempfile
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 # No imports from app here! All imports must be inside fixtures.
+
+# Tests must never touch the real casa.db, its backups or its logs. These variables are read by
+# app.database when it is first imported, so they have to be set before any test imports the app.
+_SANDBOX = tempfile.mkdtemp(prefix="casa_tests_")
+os.environ["CASA_DB_PATH"] = os.path.join(_SANDBOX, "casa.db")
+os.environ["CASA_LOG_DIR"] = os.path.join(_SANDBOX, "logs")
+
+
+def pytest_sessionstart(session):
+    """Abort the whole run if the app would still point at anything outside the sandbox."""
+    from app import database
+
+    if not str(database.DB_PATH).startswith(_SANDBOX):
+        pytest.exit(f"Refusing to run: database points to {database.DB_PATH}, not the test sandbox", returncode=2)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    shutil.rmtree(_SANDBOX, ignore_errors=True)
 
 
 @pytest.fixture(scope="function")
