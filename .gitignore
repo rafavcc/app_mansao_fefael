@@ -31,3 +31,10 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Daily database backups
+db_backup/
+
+# NiceGUI per-browser storage and manual DB copies
+.nicegui/
+casa.db.bak_*
