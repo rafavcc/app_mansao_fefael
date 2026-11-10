@@ -6,6 +6,7 @@ from nicegui import ui
 from app import crud
 from app.components import money_input, month_select, year_select
 from app.database import get_session
+from app.dates import is_future_month
 from app.formatting import format_brl, format_number_br, parse_money
 from app.models import FAFA
 from app.theme import card_classes, page_container
@@ -27,6 +28,11 @@ def build_regular_expenses() -> None:
 
     def build_form() -> None:
         selected_month, selected_year = month.value, int(year.value)
+        if is_future_month(selected_year, selected_month):
+            form_container.clear()
+            with form_container:
+                ui.label("Não é possível lançar gastos fixos em meses futuros.").classes("casa-muted py-3")
+            return
         last_day = calendar.monthrange(selected_year, selected_month)[1]
         with get_session() as db:
             categories = [c.name for c in crud.get_regular_categories(db)]

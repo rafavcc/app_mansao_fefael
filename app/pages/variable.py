@@ -6,6 +6,7 @@ from nicegui import app, ui
 from app import crud
 from app.components import date_input, parse_date_input, money_input, month_select, year_select
 from app.database import get_session
+from app.dates import is_future_date
 from app.formatting import (
     PAYER_LABELS, format_brl, format_number_br, parse_money,
 )
@@ -27,7 +28,8 @@ class ExpenseForm:
                 for p in place_shortcuts:
                     ui.button(p, on_click=lambda p=p: self.place.set_value(p)).props("flat dense no-caps")
 
-        self.date = date_input("Data", values.get("date", date.today())).classes("w-full").mark("date")
+        self.date = date_input("Data", values.get("date", date.today())).props(f'max={date.today().isoformat()}') \
+            .classes("w-full").mark("date")
 
         value = values.get("value")
         self.value = money_input(value=format_number_br(value) if value else "").classes("w-full").mark("value")
@@ -56,6 +58,8 @@ class ExpenseForm:
             problem = "Preencha o local."
         elif when is None:
             problem = "Data inválida."
+        elif is_future_date(when.year, when.month, when.day):
+            problem = "A data não pode estar no futuro."
         elif value is None or value <= 0:
             problem = "Valor deve ser maior que zero."
         elif not self.category.value:

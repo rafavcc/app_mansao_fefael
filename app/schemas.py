@@ -3,6 +3,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional
 from datetime import datetime
 
+from app.dates import is_future_date, is_future_month
+
 
 class ExpenseDate(BaseModel):
     @field_validator("notes", check_fields=False)
@@ -28,6 +30,12 @@ class VariableExpenseCreate(ExpenseDate):
     category_name: str = Field(..., min_length=1)
     notes: Optional[str] = None
 
+    @model_validator(mode="after")
+    def _not_in_future(self):
+        if is_future_date(self.year, self.month, self.day):
+            raise ValueError("Variable expenses cannot be dated in the future")
+        return self
+
 
 class VariableExpenseResponse(BaseModel):
     id: int
@@ -52,6 +60,12 @@ class RegularExpenseCreate(ExpenseDate):
     paid_by: str = Field(default="FAFA", pattern="^(FAFA|FEFE)$", description="Fixed expenses are always paid by Fafa")
     category_name: str = Field(..., min_length=1)
     notes: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _not_in_future(self):
+        if is_future_month(self.year, self.month):
+            raise ValueError("Regular expenses cannot belong to a future month")
+        return self
 
 
 class RegularExpenseResponse(BaseModel):
