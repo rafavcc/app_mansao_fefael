@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 
@@ -12,6 +13,7 @@ from typing import Optional
 
 from app.database import get_db, get_session, init_db
 from app import crud
+from app.backup import backup_loop
 from app.schemas import (
     MonthDetail, MonthlyBalance, MonthRatioCreate, MonthRatioResponse,
     RegularExpenseCreate, RegularExpenseResponse, VariableExpenseCreate, VariableExpenseResponse,
@@ -25,15 +27,20 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Only initialize DB if not in test mode (tests use their own fixtures)
-    import os
+    task = None
     if not os.environ.get("TESTING"):
         init_db()
         with get_session() as db:
             crud.autofill_current_month_regular_expenses(db)
-    yield
+        task = asyncio.create_task(backup_loop())
+    try:
+        yield
+    finally:
+        if task:
+            task.cancel()
 
 
-app = FastAPI(title="Mansao Fafew")  # No lifespan during tests - init_db() called manually in fixtures if needed
+app = FastAPI(title="Mansao Fefael", lifespan=lifespan)  # lifespan skips init_db() when TESTING is set
 
 
 @app.post("/api/variable-expense/", response_model=VariableExpenseResponse)
