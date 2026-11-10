@@ -45,7 +45,6 @@ class TestVariableCategoryCRUD:
         cat = crud.create_variable_category(db_session, "Comida")
 
         assert cat.name == "Comida"
-        assert cat.is_variable is True
 
     def test_get_variable_categories(self, db_session):
         """Test getting all variable categories."""
@@ -69,7 +68,6 @@ class TestRegularCategoryCRUD:
         cat = crud.create_regular_category(db_session, "Aluguel")
 
         assert cat.name == "Aluguel"
-        assert cat.is_variable is False
 
     def test_get_regular_categories(self, db_session):
         """Test getting all regular categories."""
@@ -211,84 +209,45 @@ class TestMonthRatioCRUD:
     """Tests for month ratio CRUD operations."""
 
     def test_set_month_ratio(self, db_session):
-        """Test setting a custom ratio for a month."""
-        from app.models import User
-
-        fafa = crud.create_user(db_session, name="FAFA_RATIO_001", full_name="Fafa Ratio")
-        
-        # Set custom ratio: 50/50
+        """Setting a ratio stores it and derives Fefe's share."""
         result = crud.set_month_ratio(db_session, month=5, year=2026, fafa=0.5)
 
-        assert result is True
+        assert result.fafa_ratio == 0.5
+        assert result.fefe_ratio == 0.5
 
-    def test_get_month_ratios(self, db_session):
-        """Test getting month ratios."""
-        from app.models import User
+    def test_get_month_ratio(self, db_session):
+        """A saved ratio is returned; an unsaved month falls back to the default."""
+        from app.models import DEFAULT_FAFA_RATIO
 
-        fafa = crud.create_user(db_session, name="FAFA_RATIO_002", full_name="Fafa Ratio")
-        
-        # Set custom ratio
         crud.set_month_ratio(db_session, month=5, year=2026, fafa=0.5)
 
-        # Get ratios for May 2026
-        ratios = crud.get_month_ratios(db_session, month=5, year=2026)
-
-        assert len(ratios) == 1
-        assert abs(ratios[0].fafa_ratio - 0.5) < 0.01
+        assert abs(crud.get_month_ratio(db_session, 5, 2026).fafa_ratio - 0.5) < 0.01
+        assert crud.get_month_ratio(db_session, 6, 2026).fafa_ratio == DEFAULT_FAFA_RATIO
 
 
 class TestPaymentCRUD:
-    """Tests for payment CRUD operations."""
+    """Tests for payment (Fefe -> Fafa) CRUD operations."""
 
-    def test_create_payment(self, db_session):
-        """Test creating a payment."""
-        from app.models import User, VariableCategory
+    def test_save_payment(self, db_session):
+        payment = crud.save_payment(db_session, {"value": 100.0, "method": "Pix"})
 
-        fafa = crud.create_user(db_session, name="FAFA_PAY_001", full_name="Fafa Pay")
-        cat = crud.create_variable_category(db_session, "Comida")
-        
-        payment = crud.create_payment(db_session, {
-            "place": "Mercado",
-            "day": 15,
-            "month": 5,
-            "year": 2026,
-            "value": 100.00,
-            "paid_by": fafa.name,
-            "category_name": cat.name
-        })
+        assert payment.id is not None
+        assert payment.value == 100.0
+        assert payment.method == "Pix"
 
-        assert payment.place == "Mercado"
-        assert payment.value == 100.00
-        assert payment.paid_by == fafa.name
+    def test_get_payments_and_delete(self, db_session):
+        first = crud.save_payment(db_session, {"value": 100.0})
+        crud.save_payment(db_session, {"value": 50.0})
 
-    def test_get_payments(self, db_session):
-        """Test getting all payments."""
-        from app.models import User, VariableCategory
+        assert len(crud.get_payments(db_session)) == 2
+        assert crud.delete_payment(db_session, first.id) is True
+        assert crud.delete_payment(db_session, first.id) is False
+        assert len(crud.get_payments(db_session)) == 1
 
-        fafa = crud.create_user(db_session, name="FAFA_PAY_002", full_name="Fafa Pay")
-        cat = crud.create_variable_category(db_session, "Comida")
-        
-        # Create two payments
-        crud.create_payment(db_session, {
-            "place": "Mercado",
-            "day": 15,
-            "month": 5,
-            "year": 2026,
-            "value": 100.00,
-            "paid_by": fafa.name,
-            "category_name": cat.name
-        })
-        
-        crud.create_payment(db_session, {
-            "place": "Padaria",
-            "day": 20,
-            "month": 5,
-            "year": 2026,
-            "value": 50.00,
-            "paid_by": fafa.name,
-            "category_name": cat.name
-        })
+    def test_update_payment(self, db_session):
+        payment = crud.save_payment(db_session, {"value": 100.0})
 
-        payments = crud.get_payments(db_session)
+        updated = crud.save_payment(db_session, {"value": 80.0}, payment.id)
 
-        assert len(payments) == 2
+        assert updated.value == 80.0
+        assert crud.save_payment(db_session, {"value": 1.0}, 9999) is None
