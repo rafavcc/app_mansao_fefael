@@ -168,7 +168,7 @@ ui.run_with(
     app,
     mount_path="/",
     storage_secret=_storage_secret(),
-    title="Mansão Fefael",
+    title="Mansao Fefael",
     language="pt-BR",
     favicon=(STATIC_DIR / "favicon.svg").read_text(encoding="utf-8"),
     viewport="width=device-width, initial-scale=1, viewport-fit-cover",

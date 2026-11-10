@@ -56,9 +56,9 @@ def layout(title: str, active: str) -> None:
 def register_pages() -> None:
     nicegui_app.add_static_files("/static", STATIC_DIR)
 
-    @ui.page("/", title="Mansão Fefael")
+    @ui.page("/", title="Mansao Fefael")
     def page_home():
-        layout("Mansão Fefael", "home")
+        layout("Mansao Fefael", "home")
         build_home()
 
     @ui.page("/variable", title="Gastos Variáveis")

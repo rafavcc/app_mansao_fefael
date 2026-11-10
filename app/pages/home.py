@@ -19,7 +19,7 @@ def build_home() -> None:
     today = date.today()
 
     with page_container():
-        ui.label("Casa Fafa & Fefe").classes(
+        ui.label("Mansao Fefael").classes(
             "casa-page-title text-2xl font-bold"
         )
 
