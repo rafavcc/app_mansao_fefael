@@ -239,8 +239,17 @@ def apply_app_theme() -> None:
             border-color: var(--casa-border);
         }
 
-        html[data-theme="dark"] .q-field__control::after {
+        /* Standard fields: the focus underline. Outlined fields use ::after as the whole box, so skip them. */
+        html[data-theme="dark"] .q-field:not(.q-field--outlined) .q-field__control::after {
             background: var(--casa-accent);
+        }
+
+        html[data-theme="dark"] .q-field--outlined .q-field__control::before {
+            border-color: var(--casa-border);
+        }
+
+        html[data-theme="dark"] .q-field--outlined.q-field--focused .q-field__control::after {
+            border-color: var(--casa-accent);
         }
 
         html[data-theme="dark"] .q-field__marginal,
