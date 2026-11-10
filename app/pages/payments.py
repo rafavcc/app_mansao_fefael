@@ -3,10 +3,10 @@ from datetime import date
 from nicegui import ui
 
 from app import crud
-from app.components import date_input, kpi_card, money_input
+from app.components import date_input, parse_date_input, kpi_card, money_input
 from app.database import get_session
 from app.formatting import (
-    format_brl, format_date_br, format_number_br, month_name, parse_date_br, parse_money,
+    format_brl, format_date_br, format_number_br, month_name, parse_money,
 )
 from app.payments import FIRST_BILLED_MONTH, calculate_payments
 from app.theme import card_classes, page_container
@@ -43,7 +43,7 @@ def build_payments() -> None:
             notes = ui.input("Observação", value=payment.notes if payment and payment.notes else "").classes("w-full")
 
             def save() -> None:
-                day = parse_date_br(paid_on.value)
+                day = parse_date_input(paid_on.value)
                 amount = parse_money(value.value)
                 if day is None:
                     ui.notify("Data inválida.", type="warning")

@@ -5,7 +5,7 @@ from nicegui import ui
 
 from app import crud
 from app.database import get_session
-from app.formatting import format_brl, format_date_br, format_pct, month_name
+from app.formatting import format_brl, format_pct, month_name
 from app.theme import card_classes
 
 COLORS = {
@@ -77,12 +77,18 @@ def money_input(
 
 
 def date_input(label: str, value: date) -> ui.input:
-    with ui.input(label, value=format_date_br(value)).props("readonly") as field:
-        with ui.menu() as menu:
-            ui.date(mask="DD/MM/YYYY").bind_value(field).on_value_change(menu.close)
-        with field.add_slot("append"):
-            ui.icon("event").classes("cursor-pointer")
-    return field
+    """Native <input type="date">: typed per field on desktop, the system wheel/picker on iOS and Android.
+
+    The value is ISO (YYYY-MM-DD); read it with parse_date_input().
+    """
+    return ui.input(label, value=value.isoformat()).props("type=date stack-label outlined")
+
+
+def parse_date_input(text: Optional[str]) -> Optional[date]:
+    try:
+        return date.fromisoformat(text or "")
+    except ValueError:
+        return None
 
 
 def kpi_card(

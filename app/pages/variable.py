@@ -4,10 +4,10 @@ from typing import Optional
 from nicegui import app, ui
 
 from app import crud
-from app.components import date_input, money_input, month_select, year_select
+from app.components import date_input, parse_date_input, money_input, month_select, year_select
 from app.database import get_session
 from app.formatting import (
-    PAYER_LABELS, format_brl, format_number_br, parse_date_br, parse_money,
+    PAYER_LABELS, format_brl, format_number_br, parse_money,
 )
 from app.models import FAFA, PAYERS, VariableExpense
 from app.theme import card_classes, page_container
@@ -49,7 +49,7 @@ class ExpenseForm:
     def read(self) -> Optional[dict]:
         """Validated expense data, or None after notifying the user of the first problem."""
         place = (self.place.value or "").strip()
-        when = parse_date_br(self.date.value)
+        when = parse_date_input(self.date.value)
         value = parse_money(self.value.value)
         problem = None
         if not place:
