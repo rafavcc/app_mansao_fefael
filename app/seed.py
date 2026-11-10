@@ -1,16 +1,19 @@
 from app.database import get_session, init_db
-from app.crud import *
+from app.crud import (
+    create_regular_category, create_user, create_variable_category,
+    get_regular_categories, get_users, get_variable_categories,
+)
 
 VARIABLE_CATEGORIES = sorted(
     (
     "Carro",     # car-related (gas, maintenance, parking)
     "Casa",      # home supplies
     "Comida",    # groceries and food
-    "Cartao",
     "Outros",
+    "Lazer",     # leisure / fun
+    "Presentes",
     "Faxina",    # cleaning services
     "Gasolina",  # fuel
-    "Lazer",     # leisure / fun
     "Taxi",      # rideshare / taxis
     "Tomtom",    # nosso tomtomzinho
     "Bacana",    # treats / nice things
@@ -22,10 +25,11 @@ REGULAR_CATEGORIES = sorted(
     (
     "Aluguel",           # rent
     "Internet",          # internet bill
-    "Cond",              # condominium fee
-    "Cemig",             # electricity bill
-    "ConsorcioMG",       # car consortium payment
+    "Condominio",        # condominium fee
+    "Cemig",             # public electricity bill
+    "Consorcio-MG",      # private electricity bill
     "IPTU",              # property tax
+    "Cartao"             # Credit Card
     )
 )
 
