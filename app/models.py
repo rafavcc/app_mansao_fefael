@@ -47,6 +47,8 @@ class MonthRatio(Base):
 
     __table_args__ = (
         UniqueConstraint("month", "year", name="uq_month_ratio"),
+        CheckConstraint("month >= 1 AND month <= 12", name="ck_ratio_month"),
+        CheckConstraint("fafa_ratio >= 0 AND fafa_ratio <= 1", name="ck_ratio_range"),
     )
 
 
@@ -69,6 +71,7 @@ class VariableExpense(Base):
 
     __table_args__ = (
         CheckConstraint("day >= 1 AND day <= 31", name="ck_var_day"),
+        CheckConstraint("month >= 1 AND month <= 12", name="ck_var_month"),
         CheckConstraint("value > 0", name="ck_var_value"),
     )
 
@@ -91,6 +94,7 @@ class RegularExpense(Base):
 
     __table_args__ = (
         CheckConstraint("day >= 1 AND day <= 31", name="ck_reg_day"),
+        CheckConstraint("month >= 1 AND month <= 12", name="ck_reg_month"),
         CheckConstraint("value > 0", name="ck_reg_value"),
         UniqueConstraint("month", "year", "category_name", name="uq_reg_per_month"),
     )
