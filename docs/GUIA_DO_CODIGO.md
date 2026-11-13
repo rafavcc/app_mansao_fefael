@@ -117,6 +117,63 @@ erDiagram
 um usuário e uma categoria existentes. `MonthRatio` armazena apenas o
 percentual de Fafa; o de Fefe é calculado como `1 - fafa_ratio`.
 
+## Orçamentos por período
+
+A página **Planejamento** (`pages/income.py`) trabalha com vários orçamentos.
+Cada orçamento tem receitas (`income_items`), despesas previstas
+(`planned_expenses`) e uma ou mais **faixas de meses** (`budget_periods`). A
+lógica fica em `app/budgets.py`, sem depender da interface:
+
+- `create_budget`, `rename_budget`, `delete_budget`: gerenciam orçamentos; com
+  `copy_from`, a criação copia receitas e despesas (não os períodos).
+- `add_period`, `update_period`, `delete_period`: gerenciam as faixas. Duas
+  faixas de orçamentos diferentes não podem se sobrepor; se a faixa anterior
+  está aberta (sem fim), o app pergunta se deve encerrá-la no mês anterior
+  (`PeriodConflict`). Faixa sem fim vale "até agora".
+- `budget_for_month`: qual orçamento vale para um mês; `covered_months`: os
+  meses cobertos até o mês atual (alimenta o seletor "Mês comparado").
+
+```mermaid
+erDiagram
+    BUDGETS ||--o{ BUDGET_PERIODS : "vale em"
+    BUDGETS ||--o{ INCOME_ITEMS : tem
+    BUDGETS ||--o{ PLANNED_EXPENSES : tem
+    BUDGETS { int id PK
+        string name }
+    BUDGET_PERIODS { int budget_id FK
+        int start_month
+        int start_year
+        int end_month "nulo = aberta"
+        int end_year }
+```
+
+`income_items` e `planned_expenses` ganharam a coluna `budget_id` (com
+`ON DELETE CASCADE`). A antiga tabela de poupança (`savings_items`) foi
+removida.
+
+### Migração na inicialização
+
+`database._migrate_to_budgets()` roda em `init_db()`. Se `income_items` ou
+`planned_expenses` ainda não têm `budget_id` (ou `savings_items` existe), ela:
+
+1. faz uma cópia em `db_backup/casa_pre_migration_<data>.db`
+   (log `Pre-migration backup created: ...`);
+2. numa única transação, cria o orçamento **Orçamento atual** (se havia linhas),
+   recria as duas tabelas com `budget_id` copiando todas as linhas e apaga
+   `savings_items`.
+
+Se der erro, a transação é desfeita, o erro é registrado
+(`Budget migration failed and was rolled back...`) e o app sobe com o esquema
+antigo; a próxima inicialização tenta de novo. O orçamento migrado nasce sem
+período: o usuário define a faixa na página Planejamento.
+
+### Reverter a migração
+
+`scripts/rollback_budgets.py` restaura as tabelas do plano a partir de um
+backup `casa_pre_migration_*.db` e apaga `budgets` e `budget_periods`. Usa só a
+biblioteca padrão (`sqlite3`), então funciona mesmo com o código antigo. O
+passo a passo está em [runbooks/budgets-release.md](runbooks/budgets-release.md).
+
 ## Responsabilidade de cada arquivo
 
 | Arquivo | Responsabilidade | Altere quando quiser... |
@@ -127,6 +184,9 @@ percentual de Fafa; o de Fefe é calculado como `1 - fafa_ratio`.
 | `schemas.py` | contrato e validação da API | validar novo campo HTTP |
 | `crud.py` | criar, consultar, atualizar e apagar | nova operação no banco |
 | `balance.py` | fórmula do rateio e saldo | mudar o cálculo financeiro |
+| `budgets.py` | orçamentos e períodos (criar, duplicar, faixas de meses) | mudar regras de orçamento |
+| `pages/income.py` | página Planejamento | alterar receitas, despesas previstas e orçamentos |
+| `../scripts/rollback_budgets.py` | desfaz a migração para orçamentos | reverter um deploy |
 | `pages/home.py` | painel inicial | alterar o resumo mensal |
 | `pages/variable.py` | gastos variáveis | alterar formulário/lista de variáveis |
 | `pages/regular.py` | gastos fixos | alterar despesas recorrentes |
