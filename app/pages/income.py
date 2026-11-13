@@ -226,7 +226,7 @@ def build_income() -> None:
 
     def year_choice(value: int, label: str):
         this_year = date.today().year
-        years = sorted({*range(this_year - 6, this_year + 7), value}, reverse=True)
+        years = sorted({*range(2000, this_year + 7), value}, reverse=True)
         return NativeSelect(years, value=value, label=label).classes("min-w-[6rem]")
 
     def period_dialog(budget, period=None) -> None:
@@ -404,7 +404,7 @@ def build_income() -> None:
                 else:
                     kpi_card(
                         "Realizado",
-                        "Sem períodos" if compared == "none" else "Sem orçamento",
+                        ("Nenhum mês até hoje" if periods else "Sem períodos") if compared == "none" else "Sem orçamento",
                         None, "casa-muted",
                     )
             section(

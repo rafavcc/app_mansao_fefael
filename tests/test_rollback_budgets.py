@@ -128,6 +128,8 @@ def test_cli_runs_without_the_app_and_says_budget_edits_are_lost(migrated):
     assert "lost" in proc.stdout.lower()
     [safety] = safety_backups(db_path)
     assert str(safety) in proc.stdout
+    undo = [line for line in proc.stdout.splitlines() if "undo" in line.lower()]
+    assert undo and str(safety) in undo[0] and "casa.db" in undo[0]
     assert snapshot(db_path, PLAN_TABLES) == snapshot(original, PLAN_TABLES)
     assert not table_names(db_path) & set(BUDGET_TABLES)
 

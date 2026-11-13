@@ -228,6 +228,7 @@ def main(argv=None) -> int:
     print(f"  savings_items:    {result['restored_savings']} rows")
     print("Dropped: budgets, budget_periods. Expenses, payments, ratios, categories and users were kept.")
     print(f"Safety backup of the database as it was before the rollback: {result['safety_backup']}")
+    print(f"To undo this rollback: stop the app and copy {result['safety_backup']} over the database file (casa.db).")
     print("WARNING: budget edits made after the deploy are lost (budgets, ranges and plan items changed since the backup).")
     print("Run the app from the pre-budgets code (git checkout pre-budgets) before starting it again.")
     return 0
