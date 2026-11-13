@@ -10,6 +10,7 @@ variáveis e fixos e calculando a divisão mensal entre Fafa e Fefe.
 - Categorias para cada tipo de gasto
 - Ajuste da proporção mensal de pagamento
 - Balanço mensal de quanto cada pessoa pagou e deve pagar
+- Orçamentos por período: vários orçamentos de planejamento (receitas e despesas previstas), cada um válido para uma faixa de meses, com comparação do mês realizado
 - Tema claro e escuro
 - API REST para as operações principais
 
@@ -96,10 +97,14 @@ app/
 ├── schemas.py       # Esquemas de validação da API
 ├── crud.py          # Operações no banco de dados
 ├── balance.py       # Cálculo do balanço mensal
+├── budgets.py       # Orçamentos e seus períodos (faixas de meses)
 ├── seed.py          # Categorias iniciais
 ├── theme.py         # Tema visual da interface
 └── pages/           # Telas da aplicação
 ```
+
+Se precisar desfazer a migração para orçamentos, veja o
+[runbook de release e reversão](docs/runbooks/budgets-release.md).
 
 ## Desenvolvimento
 

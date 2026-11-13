@@ -99,10 +99,47 @@ class RegularExpense(Base):
         UniqueConstraint("month", "year", "category_name", name="uq_reg_per_month"),
     )
 
+class Budget(Base):
+    __tablename__ = "budgets"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    periods = relationship("BudgetPeriod", back_populates="budget", cascade="all, delete-orphan")
+    income_items = relationship("IncomeItem", cascade="all, delete-orphan")
+    expense_items = relationship("PlannedExpense", cascade="all, delete-orphan")
+
+
+class BudgetPeriod(Base):
+    __tablename__ = "budget_periods"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    budget_id = Column(Integer, ForeignKey("budgets.id", ondelete="CASCADE"), nullable=False)
+    start_month = Column(Integer, nullable=False)
+    start_year = Column(Integer, nullable=False)
+    # Both NULL means the period is open-ended.
+    end_month = Column(Integer)
+    end_year = Column(Integer)
+
+    budget = relationship("Budget", back_populates="periods")
+
+    __table_args__ = (
+        CheckConstraint("start_month >= 1 AND start_month <= 12", name="ck_period_start_month"),
+        CheckConstraint("end_month IS NULL OR (end_month >= 1 AND end_month <= 12)", name="ck_period_end_month"),
+        CheckConstraint("(end_month IS NULL) = (end_year IS NULL)", name="ck_period_end_both"),
+        CheckConstraint(
+            "end_year IS NULL OR end_year * 12 + end_month >= start_year * 12 + start_month",
+            name="ck_period_order",
+        ),
+    )
+
+
 class IncomeItem(Base):
     __tablename__ = "income_items"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    budget_id = Column(Integer, ForeignKey("budgets.id", ondelete="CASCADE"), nullable=False)
     description = Column(String, nullable=False)
     value = Column(Float, nullable=False)
     # Gross salaries get INSS and IRRF deducted; other income (e.g. meal vouchers) is net.
@@ -119,22 +156,13 @@ class PlannedExpense(Base):
     __tablename__ = "planned_expenses"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    budget_id = Column(Integer, ForeignKey("budgets.id", ondelete="CASCADE"), nullable=False)
     description = Column(String, nullable=False)
     value = Column(Float, nullable=False)
     # Name from the union of regular and variable categories, so it is not a foreign key.
     category_name = Column(String, nullable=False)
 
     __table_args__ = (CheckConstraint("value > 0", name="ck_planned_value"),)
-
-
-class SavingsItem(Base):
-    __tablename__ = "savings_items"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    description = Column(String, nullable=False)
-    value = Column(Float, nullable=False)
-
-    __table_args__ = (CheckConstraint("value > 0", name="ck_savings_value"),)
 
 
 class Payment(Base):

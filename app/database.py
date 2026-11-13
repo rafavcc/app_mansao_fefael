@@ -33,10 +33,6 @@ def _setup_sql_log() -> None:
 
 _setup_sql_log()
 
-engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_thread": False, "timeout": 30})
-
-
-@event.listens_for(engine, "connect")
 def _on_connect(dbapi_connection, _record):
     # SQLite ignores foreign keys unless this is switched on for every connection.
     cursor = dbapi_connection.cursor()
@@ -46,9 +42,19 @@ def _on_connect(dbapi_connection, _record):
     dbapi_connection.isolation_level = None
 
 
-@event.listens_for(engine, "begin")
 def _on_begin(conn):
     conn.exec_driver_sql("BEGIN")
+
+
+def make_engine(url: str):
+    """Engine with foreign keys on and DDL inside real transactions (tests build theirs the same way)."""
+    new_engine = create_engine(url, echo=False, connect_args={"check_same_thread": False, "timeout": 30})
+    event.listen(new_engine, "connect", _on_connect)
+    event.listen(new_engine, "begin", _on_begin)
+    return new_engine
+
+
+engine = make_engine(DATABASE_URL)
 
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -71,17 +77,17 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     _add_missing_columns()
     _rebuild_planned_expenses()
+    _migrate_to_budgets()
     _add_check_constraints()
 
 
 def _add_missing_columns():
-    """create_all does not alter existing tables; add columns introduced after a table was created."""
-    new_columns = {
-        "income_items": {
-            "is_gross": "BOOLEAN NOT NULL DEFAULT 0",
-            "dependents": "INTEGER NOT NULL DEFAULT 0",
-        },
-    }
+    """create_all does not alter existing tables; add columns introduced after a table was created.
+
+    Empty for now: the old income_items columns (is_gross, dependents) arrive through the
+    budgets rebuild, which recreates that table from the model.
+    """
+    new_columns: dict[str, dict[str, str]] = {}
     inspector = inspect(engine)
     with engine.begin() as conn:
         for table, columns in new_columns.items():
@@ -108,6 +114,72 @@ def _rebuild_planned_expenses():
             "SELECT id, description, value, category_name FROM planned_expenses_old"
         ))
         conn.execute(text("DROP TABLE planned_expenses_old"))
+
+
+MIGRATED_BUDGET_NAME = "Orçamento atual"
+_BUDGET_SCOPED_TABLES = ("income_items", "planned_expenses")
+
+
+def _migrate_to_budgets() -> None:
+    """Move plan items made before budgets existed into one budget, and drop the savings table.
+
+    Each table is judged on its own: create_all already builds a missing table in the new shape.
+    Everything runs in one transaction after a backup; on failure it rolls back, the error is
+    logged and re-raised, so init_db fails and the app does not start on the old schema.
+    """
+    from app import models  # noqa: F401  # imported here: models imports Base from this module
+
+    inspector = inspect(engine)
+    existing = set(inspector.get_table_names())
+    to_rebuild = [
+        name for name in _BUDGET_SCOPED_TABLES
+        if name in existing and "budget_id" not in {c["name"] for c in inspector.get_columns(name)}
+    ]
+    if not to_rebuild and "savings_items" not in existing:
+        return
+
+    _backup_before_migration()
+    try:
+        with engine.begin() as conn:
+            has_rows = any(conn.exec_driver_sql(f"SELECT EXISTS (SELECT 1 FROM {name})").scalar() for name in to_rebuild)
+            budget_id = _insert_migrated_budget(conn) if has_rows else None
+            for name in to_rebuild:
+                _rebuild_with_budget(conn, Base.metadata.tables[name], budget_id)
+            conn.exec_driver_sql("DROP TABLE IF EXISTS savings_items")
+    except Exception:
+        logger.exception("Budget migration failed and was rolled back; the old schema is unchanged")
+        raise
+    logger.info("Migrated %s into budget %r and dropped savings_items", ", ".join(to_rebuild) or "no tables", MIGRATED_BUDGET_NAME)
+
+
+def _insert_migrated_budget(conn) -> int:
+    from app.models import Budget
+
+    return conn.execute(Budget.__table__.insert().values(name=MIGRATED_BUDGET_NAME)).inserted_primary_key[0]
+
+
+def _rebuild_with_budget(conn, table, budget_id) -> None:
+    """Recreate one plan table from the model and copy every row into the given budget."""
+    name = table.name
+    old_columns = [r[1] for r in conn.exec_driver_sql(f"PRAGMA table_info({name})")]
+    unknown = set(old_columns) - {c.name for c in table.columns}
+    if unknown:
+        raise RuntimeError(f"{name} has columns the model does not know, refusing to drop them: {sorted(unknown)}")
+    shared = ", ".join(c.name for c in table.columns if c.name in old_columns)
+    old_count = conn.exec_driver_sql(f"SELECT COUNT(*) FROM {name}").scalar()
+
+    # Nothing references these tables, so the rename cannot rewrite foreign keys elsewhere.
+    conn.exec_driver_sql(f"ALTER TABLE {name} RENAME TO {name}_old")
+    table.create(conn)
+    conn.exec_driver_sql(
+        f"INSERT INTO {name} ({shared}, budget_id) SELECT {shared}, ? FROM {name}_old", (budget_id,)
+    )
+    new_count = conn.exec_driver_sql(f"SELECT COUNT(*) FROM {name}").scalar()
+    if new_count != old_count:
+        raise RuntimeError(f"{name}: copied {new_count} of {old_count} rows")
+    conn.exec_driver_sql(f"DROP TABLE {name}_old")
+    if conn.exec_driver_sql(f"PRAGMA foreign_key_check({name})").first():
+        raise RuntimeError(f"{name}: rows point to a missing budget")
 
 
 # Constraints added after their tables already existed: table -> {constraint name: valid-row condition}.
@@ -164,7 +236,13 @@ def _backup_before_migration() -> None:
     if not DB_PATH.exists() or DB_PATH.stat().st_size == 0:
         return
     BACKUP_DIR.mkdir(exist_ok=True)
-    target = BACKUP_DIR / f"casa_pre_migration_{datetime.now():%Y-%m-%d_%H%M%S}.db"
+    stamp = f"casa_pre_migration_{datetime.now():%Y-%m-%d_%H%M%S}"
+    target = BACKUP_DIR / f"{stamp}.db"
+    # Several migration steps can back up within the same second; never overwrite the earlier copy.
+    suffix = 1
+    while target.exists():
+        target = BACKUP_DIR / f"{stamp}_{suffix}.db"
+        suffix += 1
     source = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
     dest = sqlite3.connect(target)
     try:
