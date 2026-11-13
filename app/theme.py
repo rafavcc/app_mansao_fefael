@@ -79,30 +79,14 @@ def apply_app_theme() -> None:
             padding-right: max(12px, env(safe-area-inset-right));
         }
 
-        .casa-tabbar {
-            display: none;
-            background: color-mix(in srgb, var(--casa-surface) 92%, transparent);
-            color: var(--casa-text);
-            border-top: 1px solid var(--casa-border);
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
-            padding: max(4px, env(safe-area-inset-right)) max(env(safe-area-inset-right)) max(env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left));
-        }
-
-        .casa-tabbar .q-tab {
-            flex: 1;
-            color: var(--casa-muted);
-            font-size: 11px;
-            min-height: 52px;
-        }
-
-        .casa-tabbar .q-tab--active {
-            color: var(--casa-accent);
-        }
-
+        /* Phones: the title is dropped (each page has its own heading) and the nav fills the header, icons only. */
         @media (max-width: 767px) {
-            .casa-nav { display: none !important; }
-            .casa-tabbar { display: flex !important; }
+            .casa-title { display: none; }
+            .casa-header > .q-space { display: none; }
+            .casa-nav { width: 100%; justify-content: space-between; flex-wrap: nowrap; }
+            .casa-nav .q-btn { padding: 0 8px; min-width: 40px; }
+            .casa-nav .q-btn__content > .block { font-size: 0; width: 0; overflow: hidden; } /* display:none loses to Quasar layered !important */
+            .casa-nav .q-btn__content > .q-icon { margin: 0; }
             .chart-view .q-btn { flex: 1 1 0; min-width: 0; padding-inline: 2px; }
             .chart-view .q-btn__content { white-space: normal; text-align: center; }
         }
@@ -153,16 +137,43 @@ def apply_app_theme() -> None:
             padding: 3px;
         }
 
-        .casa-nav-q-btn {
+        .casa-nav .q-btn {
             border-radius: 6px;
             min-height: 34px;
             color: var(--casa-muted);
         }
 
-        .casa-nav-is-active {
+        .casa-nav .q-btn.is-active {
             background: var(--casa-surface);
             color: var(--casa-accent);
             box-shadow: 0 1px 3px rgba(15, 23, 42, 0.14);
+        }
+
+        /* Planning rows: label | values... | actions, identical in every row so totals line up. */
+        .plan-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) repeat(var(--plan-cols, 1), minmax(5.5rem, 7.5rem)) 4.5rem;
+            column-gap: 0.5rem;
+        }
+
+        @media (max-width: 767px) {
+            .plan-wide {
+                grid-template-columns: repeat(var(--plan-cols), minmax(0, 1fr));
+            }
+            .plan-wide > .plan-skip { display: none; }
+            .plan-wide > .plan-label { grid-column: 1 / -1; grid-row: 1; padding-right: 4.75rem; }
+            .plan-wide > .plan-actions { grid-column: -2 / -1; grid-row: 1; justify-self: end; }
+        }
+
+        .casa-native-select {
+            appearance: none;
+            -webkit-appearance: none;
+            background: transparent;
+            border: 0;
+            outline: 0;
+            color: inherit;
+            width: 100%;
+            padding-right: 4px;
         }
 
         .casa-card {

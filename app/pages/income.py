@@ -6,6 +6,7 @@ from app import crud
 from app.components import kpi_card, money_input
 from app.database import get_session
 from app.formatting import format_brl, format_number_br, format_pct, parse_money
+from app.native_select import NativeSelect
 from app.planning import calculate_plan, income_breakdown
 from app.theme import card_classes, page_container
 
@@ -35,11 +36,10 @@ def build_income() -> None:
                     "Dependentes", value=item.dependents if item else 0, min=0, step=1, precision=0,
                 ).classes("w-full").bind_visibility_from(is_gross, "value")
             if kind == "expense":
-                category = ui.select(
+                category = NativeSelect(
                     categories,
                     value=item.category_name if item else None,
                     label="Categoria",
-                    with_input=True,
                 ).classes("w-full")
 
             def save() -> None:
@@ -86,32 +86,34 @@ def build_income() -> None:
 
     def section(title: str, kind: str, items: list, totals: list[tuple[str, list[str]]], headers: list[str]) -> None:
         """Every row is a grid with the same column template, so totals sit exactly above the item values."""
-        template = f"minmax(0,1fr) repeat({len(headers)}, minmax(5.5rem, 7.5rem)) 4.5rem"
+        # Layout lives in theme.py (.plan-row): one table row on wide screens; on phones the
+        # description sits on its own line and the values get the full width below it.
         num = "text-right whitespace-nowrap text-sm sm:text-base"
+        wide = " plan-wide" if len(headers) > 1 else ""
 
         def grid_row(classes: str = ""):
-            return ui.element("div").classes(f"w-full items-center {classes}") \
-                .style(f"display:grid;grid-template-columns:{template};column-gap:0.5rem")
+            return ui.element("div").classes(f"plan-row w-full items-center {classes}{wide}") \
+                .style(f"--plan-cols:{len(headers)}")
 
         with ui.card().classes(card_classes("w-full p-3 sm:p-4 gap-0")):
             ui.label(title).classes("text-lg font-bold mb-2")
             with grid_row("text-xs casa-muted uppercase tracking-wide pb-1"):
-                ui.label("")
+                ui.label("").classes("plan-skip")
                 for header in headers:
                     ui.label(header).classes("text-right")
-                ui.label("")
+                ui.label("").classes("plan-skip")
             for index, (label, cells) in enumerate(totals):
                 last = index == len(totals) - 1
                 with grid_row("py-2" + (" border-b font-bold" if last else " casa-muted")):
-                    ui.label(label)
+                    ui.label(label).classes("plan-label")
                     for text in cells:
                         ui.label(text).classes(num)
-                    ui.label("")
+                    ui.label("").classes("plan-skip")
             if not items:
                 ui.label("Nenhum item adicionado.").classes("casa-muted py-3")
             for item in items:
                 with grid_row("py-2 border-b"):
-                    with ui.column().classes("gap-0 min-w-0"):
+                    with ui.column().classes("plan-label gap-0 min-w-0"):
                         ui.label(item.description).classes("font-medium")
                         if kind == "expense":
                             ui.label(f"{item.category_name}").classes("text-xs casa-muted")
@@ -124,7 +126,7 @@ def build_income() -> None:
                         ui.label(format_brl(pay["net"])).classes(f"{num} font-bold")
                     else:
                         ui.label(format_brl(item.value)).classes(f"{num} font-bold")
-                    with ui.row().classes("gap-0 flex-nowrap justify-end"):
+                    with ui.row().classes("plan-actions gap-0 flex-nowrap justify-end"):
                         ui.button(icon="edit", on_click=lambda i=item: open_dialog(kind, i)).props("flat round dense size=sm")
                         ui.button(icon="delete", on_click=lambda i=item: confirm_delete(kind, i)).props("flat round dense size=sm")
             ui.button("Adicionar item", icon="add", on_click=lambda: open_dialog(kind)) \

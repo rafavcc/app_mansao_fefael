@@ -27,14 +27,14 @@ NAV_ITEMS = [
 
 
 def layout(title: str, active: str) -> None:
-    """Header (top nav on iPad/Mac) and bottom tab bar (iPhone), shared by every page."""
+    """Single top header with the navigation (icons only on phones), shared by every page."""
     apply_app_theme()
     # Idempotent; covers a server that keeps running into a new month.
     with get_session() as db:
         crud.autofill_current_month_regular_expenses(db)
 
     with ui.header(elevated=False).classes("casa-header items-center"):
-        ui.label(title).classes("text-lg font-bold")
+        ui.label(title).classes("casa-title text-lg font-bold")
         ui.space()
         with ui.row().classes("casa-nav gap-1 items-center"):
             for key, label, icon, target in NAV_ITEMS:
@@ -45,12 +45,6 @@ def layout(title: str, active: str) -> None:
                 .props("flat round dense") \
                 .classes("ml-2") \
                 .tooltip("Alternar tema")
-
-    with ui.footer(elevated=False).classes("casa-tabbar"):
-        for key, label, icon, target in NAV_ITEMS:
-            ui.button(label, icon=icon, on_click=lambda path=target: ui.navigate.to(path)) \
-                .props("flat stack no-caps") \
-                .classes("is-active" if key == active else "")
 
 
 def register_pages() -> None:
