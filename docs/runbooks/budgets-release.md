@@ -15,6 +15,13 @@ existentes.
 
 - Anote (papel ou captura de tela) os totais atuais do Planejamento: receitas,
   despesas e saldo livre. Serão comparados depois.
+- Com o servidor **parado**, faça uma cópia manual do banco (não é feita
+  automaticamente; o nome não casa com nenhum padrão que o app apaga nem que o
+  script de reversão procura):
+
+  ```bash
+  cp casa.db db_backup/casa_manual_before_budgets.db
+  ```
 
 ## 2. Release
 
@@ -52,14 +59,18 @@ Na inicialização a migração roda sozinha e antes faz seu próprio backup em
 
 ## 5. Monitorar
 
-- O log de inicialização contém `Pre-migration backup created: ...` e
-  nenhuma linha `ERROR`. Se aparecer `Budget migration failed and was rolled
-  back; the old schema is unchanged`, veja a seção 8.
-- `curl http://127.0.0.1:8888/api/health` retorna `{"status": "ok"}` (use a
-  porta em que você iniciou o servidor).
-- O "Orçamento atual" mostra os totais anotados antes do deploy.
+- O log de inicialização (terminal) mostra, com estes prefixos:
+  `INFO app.database Pre-migration backup created: ...` e
+  `INFO app.database Migrated income_items, planned_expenses into budget
+  'Orçamento atual' and dropped savings_items`, e nenhuma linha `ERROR`. Se o
+  app não subir e aparecer `ERROR app.database Budget migration failed and was
+  rolled back; the old schema is unchanged`, veja a seção 8.
 - O arquivo `db_backup/casa_pre_migration_*.db` existe. Guarde-o por várias
   semanas.
+- `curl http://127.0.0.1:<porta>/api/health` retorna `{"status": "ok"}` (use a
+  porta em que você iniciou o servidor).
+- O "Orçamento atual" mostra, em Planejamento, os totais anotados antes do
+  deploy.
 
 ### Checklist visual do dono (após o deploy)
 
@@ -82,6 +93,10 @@ código antigo não consegue ler o esquema novo.
 3. Volte o código: `git checkout pre-budgets`, ou, em `main`,
    `git revert -m 1 <commit do merge>`.
 4. Inicie o servidor.
+
+Itens do plano editados, e categorias renomeadas ou apagadas, depois do deploy
+não são restaurados: as despesas planejadas restauradas podem trazer o nome
+antigo de uma categoria.
 
 ## 7. Reverter os dados
 
@@ -127,10 +142,11 @@ com os anotados antes do deploy.
 
 ## 8. Se a migração falhar
 
-A falha é registrada no log (`Budget migration failed and was rolled back; the
-old schema is unchanged`) e o app sobe com o esquema antigo, ou seja, as telas
-de Planejamento do código novo falham no primeiro uso. Cada reinício tenta a
-migração de novo e grava mais um backup `casa_pre_migration_*`. Corrija a causa
-e reinicie, ou volte o código (seção 6; nesse caso não é preciso reverter
-dados, pois o banco continua no esquema antigo e o script recusaria por não
-estar migrado).
+Se a migração falhar, o app **não sobe**: o erro (`ERROR app.database Budget
+migration failed and was rolled back; the old schema is unchanged`, com o
+traceback) aparece no terminal. Os dados ficam intactos no esquema antigo e um
+backup `casa_pre_migration_*` foi feito antes da tentativa. Cada nova
+inicialização tenta a migração de novo e grava mais um backup. Corrija a causa
+e reinicie, ou volte o código (seção 6): como o banco continua no esquema
+antigo, não é preciso reverter dados (o script de reversão recusaria, pois o
+banco não foi migrado).

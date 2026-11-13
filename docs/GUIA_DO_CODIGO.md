@@ -157,14 +157,21 @@ removida.
 `planned_expenses` ainda não têm `budget_id` (ou `savings_items` existe), ela:
 
 1. faz uma cópia em `db_backup/casa_pre_migration_<data>.db`
-   (log `Pre-migration backup created: ...`);
+   (log `INFO app.database Pre-migration backup created: ...`);
 2. numa única transação, cria o orçamento **Orçamento atual** (se havia linhas),
    recria as duas tabelas com `budget_id` copiando todas as linhas e apaga
    `savings_items`.
 
 Se der erro, a transação é desfeita, o erro é registrado
-(`Budget migration failed and was rolled back...`) e o app sobe com o esquema
-antigo; a próxima inicialização tenta de novo. O orçamento migrado nasce sem
+(`ERROR app.database Budget migration failed and was rolled back...`, com o
+traceback no terminal) e relançado: `init_db()` falha e o app **não sobe**. Os
+dados ficam intactos no esquema antigo e já existe um backup pré-migração;
+voltar só o código não exige reverter dados. A próxima inicialização tenta de
+novo. Para conferir um deploy, veja no log as linhas `INFO` da migração, que
+`db_backup/casa_pre_migration_*.db` existe e que o Planejamento mostra os
+totais anotados antes. O logging é configurado em `app/main.py`
+(`logging.basicConfig`, nível INFO; o logger de SQL não propaga).
+O orçamento migrado nasce sem
 período: o usuário define a faixa na página Planejamento.
 
 ### Reverter a migração

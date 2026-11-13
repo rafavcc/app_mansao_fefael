@@ -21,6 +21,7 @@ from app.schemas import (
 from app.balance import calculate_monthly_balance, calculate_year_months
 from app.ui import STATIC_DIR, register_pages
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
 
 
