@@ -125,7 +125,7 @@ def _migrate_to_budgets() -> None:
 
     Each table is judged on its own: create_all already builds a missing table in the new shape.
     Everything runs in one transaction after a backup; on failure it rolls back, the error is
-    logged and the old schema stays (the app then fails on first use instead of half-migrating).
+    logged and re-raised, so init_db fails and the app does not start on the old schema.
     """
     from app import models  # noqa: F401  # imported here: models imports Base from this module
 
@@ -148,7 +148,7 @@ def _migrate_to_budgets() -> None:
             conn.exec_driver_sql("DROP TABLE IF EXISTS savings_items")
     except Exception:
         logger.exception("Budget migration failed and was rolled back; the old schema is unchanged")
-        return
+        raise
     logger.info("Migrated %s into budget %r and dropped savings_items", ", ".join(to_rebuild) or "no tables", MIGRATED_BUDGET_NAME)
 
 

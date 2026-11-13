@@ -185,7 +185,8 @@ def test_migration_failure_leaves_old_schema(tmp_path, monkeypatch, caplog, fail
         monkeypatch.setattr(database, "_rebuild_with_budget", rebuild_then_fail)
 
     with caplog.at_level(logging.ERROR, logger="app.database"):
-        database.init_db()  # logs, does not raise
+        with pytest.raises(RuntimeError, match="forced failure"):
+            database.init_db()
 
     assert "forced failure" in caplog.text
     assert "budget_id" not in columns(engine, "income_items")
@@ -197,3 +198,22 @@ def test_migration_failure_leaves_old_schema(tmp_path, monkeypatch, caplog, fail
     assert rows(engine, "SELECT id, description, value, is_gross, dependents FROM income_items ORDER BY id") == income
     assert rows(engine, "SELECT id, description, value, category_name FROM planned_expenses ORDER BY id") == expenses
     assert rows(engine, "SELECT id, description, value FROM savings_items") == savings
+
+
+def test_failed_migration_can_be_retried_after_the_cause_is_fixed(tmp_path, monkeypatch):
+    engine = build_old_db(tmp_path, monkeypatch, INCOME_ROWS, EXPENSE_ROWS, SAVINGS_ROWS)
+    original = database._insert_migrated_budget
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("forced failure")
+
+    monkeypatch.setattr(database, "_insert_migrated_budget", boom)
+    with pytest.raises(RuntimeError):
+        database.init_db()
+    monkeypatch.setattr(database, "_insert_migrated_budget", original)
+
+    database.init_db()
+
+    assert "budget_id" in columns(engine, "income_items")
+    assert rows(engine, "SELECT COUNT(*) FROM budgets") == [(1,)]
+    assert "savings_items" not in set(inspect(engine).get_table_names())
