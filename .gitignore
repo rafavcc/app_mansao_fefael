@@ -38,3 +38,6 @@ db_backup/
 # NiceGUI per-browser storage and manual DB copies
 .nicegui/
 casa.db.bak_*
+
+# Application logs (sql.log and its rotations)
+logs/
