@@ -14,7 +14,6 @@ from app.models import (
     PlannedExpense,
     RegularCategory,
     RegularExpense,
-    SavingsItem,
     User,
     VariableCategory,
     VariableExpense,
@@ -377,18 +376,17 @@ def get_monthly_category_totals(
             ] = float(total)
     return result
 
-# --- Household plan (single recurring plan, no month)
+# --- Household plan items (each belongs to a budget)
 
 PLAN_MODELS = {
     "income": IncomeItem,
     "expense": PlannedExpense,
-    "savings": SavingsItem,
 }
 
 
-def get_plan_items(db: Session, kind: str) -> list:
+def get_plan_items(db: Session, kind: str, budget_id: int) -> list:
     model = PLAN_MODELS[kind]
-    return db.query(model).order_by(model.id).all()
+    return db.query(model).filter(model.budget_id == budget_id).order_by(model.id).all()
 
 
 def save_plan_item(db: Session, kind: str, data: dict, item_id: Optional[int] = None):
