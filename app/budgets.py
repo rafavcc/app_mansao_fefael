@@ -2,6 +2,7 @@ from datetime import date
 from typing import List, Optional
 
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.formatting import month_name
@@ -52,6 +53,9 @@ def create_budget(db: Session, name: str, copy_from: Optional[int] = None) -> Bu
             budget.income_items = [_copy_row(i) for i in source.income_items]
             budget.expense_items = [_copy_row(e) for e in source.expense_items]
         db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise BudgetError("Já existe um orçamento com esse nome.")
     except Exception:
         db.rollback()
         raise
@@ -66,6 +70,9 @@ def rename_budget(db: Session, budget_id: int, name: str) -> Budget:
     budget.name = _clean_name(db, name, ignore_id=budget_id)
     try:
         db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise BudgetError("Já existe um orçamento com esse nome.")
     except Exception:
         db.rollback()
         raise
@@ -157,10 +164,13 @@ def _save_period(db, period, budget_id, start, end, close_conflict, ignore_id=No
     ):
         closable = conflicts[0]
     if conflicts and not (close_conflict and closable is not None):
-        names = "; ".join(f"{c.budget.name} ({format_period(c)})" for c in conflicts)
-        raise PeriodConflict(
-            f"Esse período se sobrepõe a outro orçamento: {names}.", conflicts, closable
-        )
+        if all(c.budget_id == budget_id for c in conflicts):
+            names = "; ".join(format_period(c) for c in conflicts)
+            message = f"Esse período se sobrepõe a outro período deste orçamento: {names}."
+        else:
+            names = "; ".join(f"{c.budget.name} ({format_period(c)})" for c in conflicts)
+            message = f"Esse período se sobrepõe a outro orçamento: {names}."
+        raise PeriodConflict(message, conflicts, closable)
     try:
         if conflicts:
             year, month = start

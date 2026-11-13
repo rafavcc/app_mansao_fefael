@@ -107,6 +107,7 @@ def test_overlap_with_another_budget_is_rejected(db_session):
     with pytest.raises(PeriodConflict) as exc:
         add_period(db_session, b.id, (2026, 6), (2026, 12))
     assert "A" in str(exc.value)
+    assert "outro orçamento" in str(exc.value)
     assert exc.value.conflicts == [pa]
     assert exc.value.closable is None
     assert db_session.query(BudgetPeriod).count() == 1
@@ -115,8 +116,10 @@ def test_overlap_with_another_budget_is_rejected(db_session):
 def test_overlap_inside_same_budget_is_rejected(db_session):
     a = period_budget(db_session, "A")
     add_period(db_session, a.id, (2024, 1), (2024, 12))
-    with pytest.raises(PeriodConflict):
+    with pytest.raises(PeriodConflict) as exc:
         add_period(db_session, a.id, (2024, 12), (2025, 3))
+    assert "outro período deste orçamento" in str(exc.value)
+    assert "outro orçamento" not in str(exc.value)
 
 
 def test_open_range_is_offered_for_closing_and_closed_on_confirm(db_session):
@@ -226,3 +229,16 @@ def test_format_period(db_session):
     p2 = add_period(db_session, a.id, (2026, 11))
     assert format_period(p1) == "Jan/2024 – Out/2026"
     assert format_period(p2) == "Nov/2026 →"
+
+
+def test_budget_name_is_unique_at_database_level(db_session):
+    from sqlalchemy.exc import IntegrityError
+
+    from app.models import Budget
+
+    db_session.add(Budget(name="Babá"))
+    db_session.commit()
+    db_session.add(Budget(name="Babá"))
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
