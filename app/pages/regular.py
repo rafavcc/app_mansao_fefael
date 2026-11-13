@@ -7,6 +7,7 @@ from app import crud
 from app.components import money_input, month_select, year_select
 from app.database import get_session
 from app.dates import is_future_month
+from app.native_select import NativeSelect
 from app.formatting import format_brl, format_number_br, parse_money
 from app.models import FAFA
 from app.theme import card_classes, page_container
@@ -48,11 +49,10 @@ def build_regular_expenses() -> None:
                 current = existing.get(name, {})
                 with ui.row().classes("w-full items-center gap-2 py-2 border-b flex-wrap"):
                     ui.label(name).classes("font-medium w-full sm:w-auto sm:flex-1")
-                    day_input = ui.select(
+                    day_input = NativeSelect(
                         {d: f"{d:02d}" for d in range(1, last_day + 1)},
                         value=min(current.get("day", 15), last_day),
                         label="Dia",
-                        with_input=True,
                     ).props("dense").classes("w-20")
                     value_input = money_input(
                         value=format_number_br(current["value"]) if current else "",

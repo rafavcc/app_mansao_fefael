@@ -8,6 +8,7 @@ from app.database import get_session
 from app.formatting import (
     format_brl, format_date_br, format_number_br, month_name, parse_money,
 )
+from app.native_select import NativeSelect
 from app.payments import FIRST_BILLED_MONTH, calculate_payments
 from app.theme import card_classes, page_container
 
@@ -37,8 +38,8 @@ def build_payments() -> None:
             ui.label("Editar pagamento" if payment else "Novo pagamento").classes("text-lg font-bold")
             paid_on = date_input("Data", payment.paid_on if payment else date.today())
             value = money_input(value=format_number_br(payment.value) if payment else "").classes("w-full")
-            method = ui.select(
-                METHODS, value=payment.method if payment else "Pix", label="Forma", with_input=True,
+            method = NativeSelect(
+                METHODS, value=payment.method if payment else "Pix", label="Forma",
             ).classes("w-full")
             notes = ui.input("Observação", value=payment.notes if payment and payment.notes else "").classes("w-full")
 

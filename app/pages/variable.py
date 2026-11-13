@@ -10,6 +10,7 @@ from app.dates import is_future_date
 from app.formatting import (
     PAYER_LABELS, format_brl, format_number_br, parse_money,
 )
+from app.native_select import NativeSelect
 from app.models import FAFA, PAYERS, VariableExpense
 from app.theme import card_classes, page_container
 
@@ -38,7 +39,7 @@ class ExpenseForm:
                 ui.button(f"R$ {quick}", on_click=lambda q=quick: self.value.set_value(format_number_br(q))) \
                     .props("flat dense no-caps")
 
-        self.category = ui.select(categories, label="Grupo", value=values.get("category_name"), with_input=True) \
+        self.category = NativeSelect(categories, label="Grupo", value=values.get("category_name")) \
             .classes("w-full").mark("category")
 
         with ui.row().classes("items-center gap-3"):

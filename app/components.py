@@ -5,6 +5,7 @@ from nicegui import ui
 
 from app import crud
 from app.database import get_session
+from app.native_select import NativeSelect
 from app.formatting import format_brl, format_pct, month_name
 from app.theme import card_classes
 
@@ -41,13 +42,12 @@ def month_select(
     value: int,
     on_change: Optional[Callable] = None,
     label: str = "Mês",
-) -> ui.select:
-    return ui.select(
+) -> NativeSelect:
+    return NativeSelect(
         options={m: month_name(m) for m in range(1, 13)},
         value=value,
         label=label,
         on_change=on_change,
-        with_input=True,
     ).classes("min-w-[9rem]")
 
 
@@ -55,16 +55,15 @@ def year_select(
     value: int,
     on_change: Optional[Callable] = None,
     label: str = "Ano",
-) -> ui.select:
+) -> NativeSelect:
     options = year_options()
     if value not in options:
         options = sorted({*options, value}, reverse=True)
-    return ui.select(
+    return NativeSelect(
         options=options,
         value=value,
         label=label,
         on_change=on_change,
-        with_input=True,
     ).classes("min-w-[6rem]")
 
 

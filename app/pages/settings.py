@@ -2,6 +2,7 @@ from nicegui import ui
 
 from app import crud
 from app.database import get_session
+from app.native_select import NativeSelect
 from app.theme import card_classes, page_container
 
 KINDS = {"variable": "Categorias variáveis", "regular": "Categorias fixas"}
@@ -30,7 +31,7 @@ def build_settings() -> None:
             target = None
             if count:
                 ui.label(f"{count} despesa(s) usam esta categoria. Escolha para onde elas vão:")
-                target = ui.select(options, label="Nova categoria", with_input=True).classes("w-full").mark("target")
+                target = NativeSelect(options, label="Nova categoria").classes("w-full").mark("target")
             else:
                 ui.label("Nenhuma despesa usa esta categoria.")
 
