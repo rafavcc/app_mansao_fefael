@@ -5,7 +5,7 @@ import os
 import secrets
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query, Depends
+from fastapi import FastAPI, File, Form, HTTPException, Query, Depends, UploadFile
 from nicegui import ui
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -17,12 +17,13 @@ from app.env import load_env_file
 load_env_file()
 
 from app.database import get_db, get_session, init_db
-from app import crud
+from app import crud, llm, photo_import
 from app.backup import backup_loop
 from app.schemas import (
-    MonthDetail, MonthlyBalance, MonthRatioCreate, MonthRatioResponse,
+    MonthDetail, MonthlyBalance, PhotoExtraction, MonthRatioCreate, MonthRatioResponse,
     RegularExpenseCreate, RegularExpenseResponse, VariableExpenseCreate, VariableExpenseResponse,
 )
+from app.models import PAYERS
 from app.balance import calculate_monthly_balance, calculate_year_months
 from app.ui import STATIC_DIR, register_pages
 
@@ -52,6 +53,28 @@ app = FastAPI(title="Mansao Fefael", lifespan=lifespan)  # lifespan skips init_d
 @app.post("/api/variable-expense/", response_model=VariableExpenseResponse)
 def add_variable_expense(data: VariableExpenseCreate, db: Session = Depends(get_db)):
     return crud.create_variable_expense(db, data.model_dump())
+
+
+@app.post("/api/variable-expenses/extract", response_model=list[PhotoExtraction])
+def extract_variable_expenses(
+    files: list[UploadFile] = File(...),
+    paid_by: str = Form(...),
+    model: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Reads each photo with the vision LLM and returns draft rows. Never saves anything."""
+    if paid_by not in PAYERS:
+        raise HTTPException(status_code=422, detail="Pagador inválido.")
+    model = model or llm.llm_config().model
+    ctx = photo_import.load_context(db, paid_by)
+    results: list[PhotoExtraction] = []
+    earlier = []
+    for upload in files:
+        result = photo_import.extract_photo(upload.file.read(), upload.filename or "foto", ctx, model)
+        photo_import.mark_duplicates(db, result.rows, earlier=earlier)
+        earlier.extend(result.rows)
+        results.append(result)
+    return results
 
 
 @app.get("/api/variable-expenses/", response_model=list[VariableExpenseResponse])
