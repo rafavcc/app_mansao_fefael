@@ -12,6 +12,7 @@ from app.photo_import import (
     parse_month,
     parse_reply,
     prepare_image,
+    rows_from_reply,
 )
 
 TODAY = date(2026, 11, 21)
@@ -121,8 +122,6 @@ def test_match_category():
     assert match_category("Mercado", ["Comida"]) is None
 
 
-from app.photo_import import rows_from_reply
-
 CATS = ["Comida", "Lazer", "Outros"]
 
 
@@ -186,3 +185,17 @@ def test_rows_from_reply_skips_non_objects():
 def test_rows_from_reply_requires_items_list():
     with pytest.raises(PhotoImportError):
         rows_from_reply({"month": "outubro"}, "FEFE", CATS, TODAY)
+
+
+def test_rows_from_reply_huge_and_non_finite_numbers_become_none():
+    items = [
+        good_item(day=10**30, value=10**400),
+        good_item(day="9" * 5000),
+        good_item(value=float("inf")),
+        good_item(value="1e999"),
+        good_item(value=float("nan")),
+    ]
+    _, rows = rows_from_reply({"items": items}, "FEFE", CATS, TODAY)
+    assert rows[0].day is None and rows[0].value is None and rows[1].day is None
+    assert [r.value for r in rows[2:]] == [None, None, None]
+    assert all(r.error and not r.selected for r in rows)

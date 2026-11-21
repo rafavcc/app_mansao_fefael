@@ -1,4 +1,5 @@
 import calendar
+import math
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from typing import Optional
 from datetime import date, datetime
@@ -49,7 +50,7 @@ def variable_expense_problem(data: dict) -> Optional[str]:
     if is_future_date(when.year, when.month, when.day):
         return "A data não pode estar no futuro."
     value = data.get("value")
-    if value is None or value <= 0:
+    if value is None or not math.isfinite(value) or value <= 0:
         return "Valor deve ser maior que zero."
     if not data.get("category_name"):
         return "Selecione um grupo."

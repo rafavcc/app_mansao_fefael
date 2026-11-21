@@ -1,6 +1,7 @@
 """Importação de despesas variáveis a partir de fotos: helpers puros."""
 import io
 import json
+import math
 import unicodedata
 from datetime import date
 from typing import Optional
@@ -111,20 +112,26 @@ def match_category(name: Optional[str], categories: list[str]) -> Optional[str]:
 def _number(value) -> Optional[float]:
     if isinstance(value, bool):
         return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    return parse_money(value) if isinstance(value, str) else None
+    if isinstance(value, str):
+        value = parse_money(value)
+    if not isinstance(value, (int, float)):
+        return None
+    try:
+        result = float(value)
+    except OverflowError:
+        return None
+    return result if math.isfinite(result) else None
 
 
 def _day(value) -> Optional[int]:
     if isinstance(value, bool):
         return None
-    if isinstance(value, int):
+    if isinstance(value, str) and value.strip().isdigit() and len(value.strip()) <= 2:
+        value = int(value.strip())
+    elif isinstance(value, float) and value.is_integer():
+        value = int(value)
+    if isinstance(value, int) and 1 <= value <= 31:
         return value
-    if isinstance(value, float) and value.is_integer():
-        return int(value)
-    if isinstance(value, str) and value.strip().isdigit():
-        return int(value.strip())
     return None
 
 
