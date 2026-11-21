@@ -103,7 +103,7 @@ def test_infer_year_december_page_read_in_january():
 @pytest.mark.parametrize(
     "section, note, expected",
     [
-        ("cartao", "abafador", "Cartão - abafador"),
+        ("cartao", "ventilador", "Cartão - ventilador"),
         ("Cartão", None, "Cartão"),
         ("pix", "  ", "Pix"),
         ("PIX", "meli", "Pix - meli"),
@@ -134,14 +134,14 @@ def good_item(**over) -> dict:
 
 def test_rows_from_reply_builds_rows():
     reply = {"month": "outubro", "items": [{
-        "day": 6, "month": 10, "place": " amazon ", "note": "abafador", "value": 102.9,
+        "day": 6, "month": 10, "place": " amazon ", "note": "ventilador", "value": 45.67,
         "section": "cartao", "category_name": "lazer"}]}
     month, rows = rows_from_reply(reply, "FEFE", CATS, TODAY)
     assert month == 10
     row = rows[0]
     assert (row.place, row.day, row.month, row.year) == ("amazon", 6, 10, 2026)
-    assert row.value == 102.9
-    assert row.notes == "Cartão - abafador"
+    assert row.value == 45.67
+    assert row.notes == "Cartão - ventilador"
     assert row.category_name == "Lazer"
     assert row.paid_by == "FEFE"
     assert row.error is None
@@ -150,10 +150,10 @@ def test_rows_from_reply_builds_rows():
 
 def test_rows_from_reply_accepts_comma_values_and_heading_month():
     reply = {"month": "outubro", "items": [
-        {"day": "7", "value": "102,90", "section": "pix", "place": "meli"}]}
+        {"day": "7", "value": "45,67", "section": "pix", "place": "meli"}]}
     _, rows = rows_from_reply(reply, "FEFE", CATS, TODAY)
     row = rows[0]
-    assert row.value == 102.9
+    assert row.value == 45.67
     assert row.month == 10
     assert row.notes == "Pix"
     assert row.category_name == "Outros"
@@ -323,7 +323,7 @@ def test_extract_photo_rejects_huge_files():
     read.assert_not_called()
 
 
-def _draft(place="Mercado", day=25, month=10, year=2026, value=102.90, paid_by="FAFA",
+def _draft(place="Mercado", day=25, month=10, year=2026, value=45.67, paid_by="FAFA",
            category="Comida", **kw):
     return DraftExpense(place=place, day=day, month=month, year=year, value=value,
                         paid_by=paid_by, category_name=category, **kw)
@@ -334,7 +334,7 @@ def _seed_duplicate(db):
         crud.create_user(db, name)
     crud.create_variable_category(db, "Comida")
     crud.create_variable_expense(db, {
-        "place": "Padaria", "day": 10, "month": 10, "year": 2026, "value": 102.90,
+        "place": "Padaria", "day": 10, "month": 10, "year": 2026, "value": 45.67,
         "paid_by": "FAFA", "category_name": "Comida",
     })
 
@@ -342,10 +342,10 @@ def _seed_duplicate(db):
 def test_mark_duplicates_flags_same_payer_month_year_and_cents_any_day(db_session):
     _seed_duplicate(db_session)
     dup = _draft()
-    others = [_draft(value=102.91), _draft(paid_by="FEFE", day=26), _draft(month=11)]
+    others = [_draft(value=45.68), _draft(paid_by="FEFE", day=26), _draft(month=11)]
     mark_duplicates(db_session, [dup, *others])
     assert dup.possible_duplicate and not dup.selected
-    assert "R$ 102,90" in dup.duplicate_reason and "Out/2026" in dup.duplicate_reason
+    assert "R$ 45,67" in dup.duplicate_reason and "Out/2026" in dup.duplicate_reason
     assert "Padaria" in dup.duplicate_reason
     assert not any(r.possible_duplicate for r in others)
     assert all(r.selected for r in others)
@@ -384,7 +384,7 @@ def test_save_drafts_dry_run_writes_nothing(db_session, monkeypatch):
     monkeypatch.setattr(crud, "create_variable_expenses", boom)
     drafts = [_draft(value=10.0), _draft(value=20.5), _draft(possible_duplicate=True)]
     summary = save_drafts(db_session, drafts, dry_run=True)
-    assert summary == SaveSummary(count=3, total=pytest.approx(133.4), duplicates=1, saved=False)
+    assert summary == SaveSummary(count=3, total=pytest.approx(76.17), duplicates=1, saved=False)
     assert _count(db_session) == 1
 
 

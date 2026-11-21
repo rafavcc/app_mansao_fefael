@@ -319,13 +319,13 @@ Medições com uma página real (gemma-4-12b, servidor na rede local, 8 linhas):
 
 - O modelo "pensa" antes de responder e, em várias chamadas, ficou raciocinando por
   mais de 10 minutos sem produzir resposta. `llm.read_image` agora envia
-  `chat_template_kwargs: {"enable_thinking": false}`: mesma qualidade, cerca de 25 s.
+  `chat_template_kwargs: {"enable_thinking": false}`: mesma qualidade, cerca de 25 s (testado só no servidor Unsloth).
 - Redução (`downscale=True`, padrão mantido): a precisão é igual com e sem redução
   (a foto de teste já tinha 1600 px, então só mudou PNG para JPEG); a redução
-  mantém fotos grandes de celular leves.
-- Erros típicos de leitura: um valor (`102,90` lido como `102,00`), locais e
-  observações (`meli-tapete`, `abafador`, `bolo mn`) e o grupo sugerido, que varia
-  entre chamadas mesmo com temperatura 0. Por isso a tela de revisão é obrigatória.
+  deve manter leves as fotos grandes de celular (expectativa, não medida).
+- Erros típicos de leitura: um valor com dígito trocado, locais e observações mal
+  lidos e o grupo sugerido, que varia entre chamadas mesmo com temperatura 0. Por
+  isso a tela de revisão é obrigatória.
 - Modelo não carregado: o servidor não troca de modelo por pedido (opção "Switch
   model by request" desligada) e responde 404 em 0,1 s com a explicação em inglês;
   o app mostra essa mensagem na íntegra. Nada é carregado ou descarregado.

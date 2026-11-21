@@ -192,8 +192,8 @@ def build_prompt(categories: list[str], examples: list[tuple[str, str]]) -> str:
         '"section" é "cartao" para gastos no cartão e "pix" para gastos no Pix.',
         "A página tem duas colunas, Cartão e Pix: leia as duas, linha por linha.",
         "O mês está no título da página; cada linha começa com dia/mês.",
-        'Os valores são escritos com vírgula e sempre têm dois decimais (ex.: 102,90). '
-        'Escreva "value" como número com ponto decimal (ex.: 102.9), sem R$; '
+        'Os valores são escritos com vírgula e sempre têm dois decimais (ex.: 12,34). '
+        'Escreva "value" como número com ponto decimal (ex.: 12.34), sem R$; '
         "não troque nem omita dígitos.",
         '"place" é o nome do estabelecimento, copiado como está escrito; '
         '"note" é a palavrinha pequena escrita acima ou ao lado do local; use null se não houver.',

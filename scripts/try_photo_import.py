@@ -1,6 +1,6 @@
 """Try the photo import against the real LLM server, without touching the database.
 
-    venv/bin/python scripts/try_photo_import.py <photo> [--payer FEFE] [--model ID] [--no-downscale]
+    venv/bin/python scripts/try_photo_import.py <photo> [--payer FEFE] [--model ID] [--no-downscale] [--show-prompt]
 
 Loads .env, builds the context from the database at CASA_DB_PATH (read only), reads the photo with
 extract_photo and prints the elapsed seconds and the rows as a table. Never writes to the database.
