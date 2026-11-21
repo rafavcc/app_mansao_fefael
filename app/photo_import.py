@@ -1,15 +1,21 @@
 """Importação de despesas variáveis a partir de fotos: helpers puros."""
 import io
 import json
+import logging
 import math
 import unicodedata
+from dataclasses import dataclass
 from datetime import date
 from typing import Optional
 
 from PIL import Image, ImageOps
 
+from app import crud, llm
 from app.formatting import MONTHS_PT, parse_money
-from app.schemas import DraftExpense, variable_expense_problem
+from app.llm import LLMConfig, LLMError
+from app.schemas import DraftExpense, PhotoExtraction, variable_expense_problem
+
+logger = logging.getLogger(__name__)
 
 MAX_LONG_SIDE = 1600
 MAX_PHOTO_BYTES = 20 * 1024 * 1024
@@ -164,3 +170,75 @@ def rows_from_reply(
         row.selected = row.error is None
         rows.append(row)
     return heading_month, rows
+
+
+@dataclass(frozen=True)
+class ImportContext:
+    paid_by: str
+    categories: list[str]
+    prompt: str
+
+
+def build_prompt(categories: list[str], examples: list[tuple[str, str]]) -> str:
+    """Instruções em português para a IA ler a página de gastos manuscrita."""
+    lines = [
+        "Esta foto é uma página manuscrita de gastos do mês. Leia todos os gastos.",
+        'Responda SOMENTE com JSON, sem texto extra, neste formato: '
+        '{"month": <mês da página>, "items": [{"day": <dia>, "month": <mês>, '
+        '"place": <local>, "note": <texto ou null>, "value": <valor>, '
+        '"section": "cartao" ou "pix", "category_name": <grupo>}]}',
+        '"section" é "cartao" para gastos no cartão e "pix" para gastos no Pix.',
+        'Escreva "value" como número com ponto decimal (ex.: 25.5), sem R$.',
+        '"note" é a palavrinha escrita acima do local; use null se não houver.',
+        "Grupos disponíveis: " + ", ".join(categories) + ".",
+        "O category_name deve ser exatamente um desses grupos.",
+    ]
+    if examples:
+        lines.append("Exemplos de gastos anteriores (local → grupo):")
+        lines.extend(f"{place} → {group}" for place, group in examples)
+    return "\n".join(lines)
+
+
+def load_context(db, paid_by: str) -> ImportContext:
+    """Grupos e exemplos do histórico do pagador (ou de FAFA, se ele não tiver)."""
+    categories = sorted(c.name for c in crud.get_variable_categories(db))
+    examples = crud.get_place_category_pairs(db, paid_by) or crud.get_place_category_pairs(db, "FAFA")
+    return ImportContext(paid_by=paid_by, categories=categories, prompt=build_prompt(categories, examples))
+
+
+def _sniff_mime(data: bytes) -> str:
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8"):
+        return "image/jpeg"
+    raise PhotoImportError("Arquivo não é uma imagem suportada (use JPG ou PNG).")
+
+
+def extract_photo(
+    data: bytes,
+    filename: str,
+    ctx: ImportContext,
+    model: str,
+    config: Optional[LLMConfig] = None,
+    today: Optional[date] = None,
+    downscale: bool = True,
+) -> PhotoExtraction:
+    """Lê uma foto com a IA e devolve rascunhos; nunca lança. Sem acesso ao banco."""
+    try:
+        if len(data) > MAX_PHOTO_BYTES:
+            raise PhotoImportError("Foto muito grande (máx. 20 MB).")
+        if downscale:
+            image, mime = prepare_image(data)
+        else:
+            image, mime = data, _sniff_mime(data)
+        text = llm.read_image(config or llm.llm_config(), model, ctx.prompt, image, mime)
+        reply = parse_reply(text)
+        month, rows = rows_from_reply(reply, ctx.paid_by, ctx.categories, today or date.today())
+        return PhotoExtraction(filename=filename, month=month, rows=rows)
+    except (PhotoImportError, LLMError) as exc:
+        return PhotoExtraction(filename=filename, error=f"Foto '{filename}': {exc}")
+    except Exception:
+        logger.exception("Erro inesperado ao ler a foto %s", filename)
+        return PhotoExtraction(
+            filename=filename, error=f"Foto '{filename}': erro inesperado ao ler a foto."
+        )

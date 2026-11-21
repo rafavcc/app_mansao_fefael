@@ -36,6 +36,19 @@ def get_variable_categories(db: Session) -> List[VariableCategory]:
     return db.query(VariableCategory).all()
 
 
+def get_place_category_pairs(db: Session, paid_by: str, limit: int = 30) -> List[tuple]:
+    """Pares (local, grupo) distintos dos gastos variáveis do pagador, mais usados primeiro."""
+    rows = (
+        db.query(VariableExpense.place, VariableExpense.category_name)
+        .filter(VariableExpense.paid_by == paid_by)
+        .group_by(VariableExpense.place, VariableExpense.category_name)
+        .order_by(func.count().desc(), func.max(VariableExpense.id).desc())
+        .limit(limit)
+        .all()
+    )
+    return [(place, category) for place, category in rows]
+
+
 def create_variable_category(db: Session, name: str) -> VariableCategory:
     cat = VariableCategory(name=name)
     db.add(cat)

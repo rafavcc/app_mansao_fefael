@@ -205,3 +205,113 @@ def test_rows_from_reply_huge_and_non_finite_numbers_become_none():
 
 def test_parse_month_superscript_digit_is_none():
     assert parse_month("²") is None
+
+
+# ---- Task 5: prompt, contexto e extração por foto ----
+
+from unittest.mock import MagicMock, patch
+
+from app import crud
+from app.llm import LLMError
+from app.photo_import import (
+    MAX_PHOTO_BYTES,
+    ImportContext,
+    build_prompt,
+    extract_photo,
+    load_context,
+)
+
+
+def _add_expense(db, place, category, paid_by):
+    crud.create_variable_expense(db, {
+        "place": place, "day": 5, "month": 3, "year": 2025, "value": 10.0,
+        "paid_by": paid_by, "category_name": category,
+    })
+
+
+def _seed(db, with_fefe_history=True):
+    for name in ("FAFA", "FEFE"):
+        crud.create_user(db, name)
+    for cat in ("Comida", "Lazer", "Casa", "Taxi"):
+        crud.create_variable_category(db, cat)
+    for _ in range(3):
+        _add_expense(db, "iFood", "Comida", "FAFA")
+    _add_expense(db, "Amazon", "Lazer", "FAFA")
+    for _ in range(2):
+        _add_expense(db, "Amazon", "Casa", "FAFA")
+    if with_fefe_history:
+        _add_expense(db, "Uber", "Taxi", "FEFE")
+
+
+def test_get_place_category_pairs_most_used_first_per_payer(db_session):
+    _seed(db_session)
+    assert crud.get_place_category_pairs(db_session, "FAFA") == [
+        ("iFood", "Comida"), ("Amazon", "Casa"), ("Amazon", "Lazer"),
+    ]
+    assert len(crud.get_place_category_pairs(db_session, "FAFA", limit=1)) == 1
+    assert crud.get_place_category_pairs(db_session, "FEFE") == [("Uber", "Taxi")]
+
+
+def test_build_prompt_lists_groups_examples_and_keys():
+    prompt = build_prompt(["Comida", "Lazer"], [("iFood", "Comida")])
+    for text in ("Comida", "Lazer", "iFood → Comida", "cartao", "pix", "category_name", "JSON"):
+        assert text in prompt
+    assert "→" not in build_prompt(["Comida", "Lazer"], [])
+
+
+def test_load_context_uses_fafa_history_when_payer_has_none(db_session):
+    _seed(db_session, with_fefe_history=False)
+    ctx = load_context(db_session, "FEFE")
+    assert ctx.paid_by == "FEFE"
+    assert ctx.categories == ["Casa", "Comida", "Lazer", "Taxi"]
+    assert "iFood" in ctx.prompt
+
+
+CTX = ImportContext(paid_by="FEFE", categories=["Comida", "Lazer"], prompt="PROMPT")
+REPLY = """```json
+{"month": "outubro", "items": [
+ {"day": 3, "place": "iFood", "value": 25.5, "section": "cartao", "category_name": "Comida"},
+ {"day": 4, "place": "Cinema", "value": "40.00", "section": "pix", "category_name": "Lazer"}]}
+```"""
+
+
+def test_extract_photo_returns_rows():
+    with patch("app.llm.read_image", return_value=REPLY) as read:
+        result = extract_photo(make_image(100, 100), "p1.png", CTX, "m", config=MagicMock(), today=TODAY)
+    assert result.error is None
+    assert len(result.rows) == 2
+    assert result.month == 10
+    args = read.call_args.args
+    assert isinstance(args[3], bytes)
+    assert args[2] == "PROMPT"
+    assert args[4] == "image/jpeg"
+
+
+def test_extract_photo_without_downscale_sniffs_mime():
+    with patch("app.llm.read_image", return_value=REPLY) as read:
+        result = extract_photo(make_image(10, 10), "p1.png", CTX, "m", config=MagicMock(),
+                               today=TODAY, downscale=False)
+    assert result.error is None
+    assert read.call_args.args[4] == "image/png"
+
+
+@pytest.mark.parametrize("data,side_effect,reply,expected", [
+    (make_image(10, 10), LLMError("Servidor fora"), None, "Foto 'p1.png': Servidor fora"),
+    (make_image(10, 10), None, "nada", "JSON"),
+    (b"xx", None, REPLY, "imagem"),
+    (make_image(10, 10), RuntimeError("boom"), None, "erro inesperado"),
+])
+def test_extract_photo_errors_name_the_photo(data, side_effect, reply, expected):
+    with patch("app.llm.read_image", side_effect=side_effect, return_value=reply):
+        result = extract_photo(data, "p1.png", CTX, "m", config=MagicMock(), today=TODAY)
+    assert result.rows == []
+    assert "p1.png" in result.error and expected in result.error
+    if side_effect and isinstance(side_effect, LLMError):
+        assert result.error == expected
+
+
+def test_extract_photo_rejects_huge_files():
+    with patch("app.llm.read_image") as read:
+        result = extract_photo(b"0" * (MAX_PHOTO_BYTES + 1), "p1.png", CTX, "m", config=MagicMock())
+    assert "20 MB" in result.error
+    read.assert_not_called()
