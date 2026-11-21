@@ -11,6 +11,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from typing import Optional
 
+from app.env import load_env_file
+
+# Load .env first so it can also set CASA_DB_PATH / CASA_STORAGE_SECRET
+load_env_file()
+
 from app.database import get_db, get_session, init_db
 from app import crud
 from app.backup import backup_loop
