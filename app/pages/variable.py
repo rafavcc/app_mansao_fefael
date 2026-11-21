@@ -6,12 +6,12 @@ from nicegui import app, ui
 from app import crud
 from app.components import date_input, parse_date_input, money_input, month_select, year_select
 from app.database import get_session
-from app.dates import is_future_date
 from app.formatting import (
     PAYER_LABELS, format_brl, format_number_br, parse_money,
 )
+from app.schemas import variable_expense_problem
 from app.native_select import NativeSelect
-from app.models import FAFA, PAYERS, VariableExpense
+from app.models import FAFA, VariableExpense
 from app.theme import card_classes, page_container
 
 QUICK_VALUES = [10, 20, 50, 70, 100, 200, 250, 500]
@@ -51,35 +51,22 @@ class ExpenseForm:
 
     def read(self) -> Optional[dict]:
         """Validated expense data, or None after notifying the user of the first problem."""
-        place = (self.place.value or "").strip()
         when = parse_date_input(self.date.value)
-        value = parse_money(self.value.value)
-        problem = None
-        if not place:
-            problem = "Preencha o local."
-        elif when is None:
-            problem = "Data inválida."
-        elif is_future_date(when.year, when.month, when.day):
-            problem = "A data não pode estar no futuro."
-        elif value is None or value <= 0:
-            problem = "Valor deve ser maior que zero."
-        elif not self.category.value:
-            problem = "Selecione um grupo."
-        elif self.paid_by.value not in PAYERS:
-            problem = "Selecione quem pagou."
-        if problem:
-            ui.notify(problem, type="warning")
-            return None
-        return {
-            "place": place,
-            "day": when.day,
-            "month": when.month,
-            "year": when.year,
-            "value": value,
+        data = {
+            "place": (self.place.value or "").strip(),
+            "day": when.day if when else None,
+            "month": when.month if when else None,
+            "year": when.year if when else None,
+            "value": parse_money(self.value.value),
             "paid_by": self.paid_by.value,
             "category_name": self.category.value,
             "notes": (self.notes.value or "").strip() or None,
         }
+        problem = variable_expense_problem(data)
+        if problem:
+            ui.notify(problem, type="warning")
+            return None
+        return data
 
 
 def build_variable_expenses() -> None:

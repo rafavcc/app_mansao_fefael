@@ -7,7 +7,8 @@ from typing import Optional
 
 from PIL import Image, ImageOps
 
-from app.formatting import MONTHS_PT
+from app.formatting import MONTHS_PT, parse_money
+from app.schemas import DraftExpense, variable_expense_problem
 
 MAX_LONG_SIDE = 1600
 MAX_PHOTO_BYTES = 20 * 1024 * 1024
@@ -105,3 +106,54 @@ def match_category(name: Optional[str], categories: list[str]) -> Optional[str]:
             if category.lower() == wanted:
                 return category
     return FALLBACK_CATEGORY if FALLBACK_CATEGORY in categories else None
+
+
+def _number(value) -> Optional[float]:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    return parse_money(value) if isinstance(value, str) else None
+
+
+def _day(value) -> Optional[int]:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
+def rows_from_reply(
+    reply: dict, paid_by: str, categories: list[str], today: date
+) -> tuple[Optional[int], list[DraftExpense]]:
+    """Mês do cabeçalho e linhas de rascunho validadas a partir da resposta da IA."""
+    items = reply.get("items")
+    if not isinstance(items, list):
+        raise PhotoImportError("A IA não devolveu a lista de gastos.")
+    heading_month = parse_month(reply.get("month"))
+    rows = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        day = _day(item.get("day"))
+        month = parse_month(item.get("month")) or heading_month
+        place = item.get("place")
+        row = DraftExpense(
+            place=place.strip() if isinstance(place, str) else "",
+            day=day,
+            month=month,
+            year=infer_year(month, day, today) if day and month else None,
+            value=_number(item.get("value")),
+            paid_by=paid_by,
+            category_name=match_category(item.get("category_name"), categories),
+            notes=build_notes(item.get("section"), item.get("note")),
+        )
+        row.error = variable_expense_problem(row.expense_data())
+        row.selected = row.error is None
+        rows.append(row)
+    return heading_month, rows

@@ -119,3 +119,70 @@ def test_match_category():
     assert match_category("Mercado", cats) == "Outros"
     assert match_category(None, cats) == "Outros"
     assert match_category("Mercado", ["Comida"]) is None
+
+
+from app.photo_import import rows_from_reply
+
+CATS = ["Comida", "Lazer", "Outros"]
+
+
+def good_item(**over) -> dict:
+    item = {"day": 6, "month": 10, "place": "amazon", "value": 10.0, "section": "pix"}
+    item.update(over)
+    return item
+
+
+def test_rows_from_reply_builds_rows():
+    reply = {"month": "outubro", "items": [{
+        "day": 6, "month": 10, "place": " amazon ", "note": "abafador", "value": 102.9,
+        "section": "cartao", "category_name": "lazer"}]}
+    month, rows = rows_from_reply(reply, "FEFE", CATS, TODAY)
+    assert month == 10
+    row = rows[0]
+    assert (row.place, row.day, row.month, row.year) == ("amazon", 6, 10, 2026)
+    assert row.value == 102.9
+    assert row.notes == "Cartão - abafador"
+    assert row.category_name == "Lazer"
+    assert row.paid_by == "FEFE"
+    assert row.error is None
+    assert row.selected is True
+
+
+def test_rows_from_reply_accepts_comma_values_and_heading_month():
+    reply = {"month": "outubro", "items": [
+        {"day": "7", "value": "102,90", "section": "pix", "place": "meli"}]}
+    _, rows = rows_from_reply(reply, "FEFE", CATS, TODAY)
+    row = rows[0]
+    assert row.value == 102.9
+    assert row.month == 10
+    assert row.notes == "Pix"
+    assert row.category_name == "Outros"
+
+
+@pytest.mark.parametrize("over, message", [
+    ({"value": None}, "Valor deve ser maior que zero."),
+    ({"day": 31, "month": 4}, "Data inválida."),
+    ({"place": ""}, "Preencha o local."),
+])
+def test_rows_from_reply_flags_invalid_rows_unchecked(over, message):
+    _, rows = rows_from_reply({"items": [good_item(**over)]}, "FEFE", CATS, TODAY)
+    assert rows[0].error == message
+    assert rows[0].selected is False
+
+
+def test_rows_from_reply_bad_fields_become_none_not_errors():
+    items = [good_item(day="abc", value="xyz"), good_item(day=[1], value={"a": 1})]
+    _, rows = rows_from_reply({"items": items}, "FEFE", CATS, TODAY)
+    assert [r.day for r in rows] == [None, None]
+    assert [r.value for r in rows] == [None, None]
+    assert all(r.error and not r.selected for r in rows)
+
+
+def test_rows_from_reply_skips_non_objects():
+    _, rows = rows_from_reply({"items": ["lixo", good_item()]}, "FEFE", CATS, TODAY)
+    assert len(rows) == 1
+
+
+def test_rows_from_reply_requires_items_list():
+    with pytest.raises(PhotoImportError):
+        rows_from_reply({"month": "outubro"}, "FEFE", CATS, TODAY)

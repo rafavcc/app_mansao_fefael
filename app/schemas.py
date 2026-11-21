@@ -1,9 +1,10 @@
 import calendar
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from typing import Optional
-from datetime import datetime
+from datetime import date, datetime
 
 from app.dates import is_future_date, is_future_month
+from app.models import PAYERS
 
 
 class ExpenseDate(BaseModel):
@@ -35,6 +36,66 @@ class VariableExpenseCreate(ExpenseDate):
         if is_future_date(self.year, self.month, self.day):
             raise ValueError("Variable expenses cannot be dated in the future")
         return self
+
+
+def variable_expense_problem(data: dict) -> Optional[str]:
+    """First problem found in variable expense data (as a Portuguese message), or None."""
+    if not (data.get("place") or "").strip():
+        return "Preencha o local."
+    try:
+        when = date(data["year"], data["month"], data["day"])
+    except (KeyError, TypeError, ValueError):
+        return "Data inválida."
+    if is_future_date(when.year, when.month, when.day):
+        return "A data não pode estar no futuro."
+    value = data.get("value")
+    if value is None or value <= 0:
+        return "Valor deve ser maior que zero."
+    if not data.get("category_name"):
+        return "Selecione um grupo."
+    if data.get("paid_by") not in PAYERS:
+        return "Selecione quem pagou."
+    try:
+        VariableExpenseCreate(**data)
+    except ValidationError:
+        return "Dados inválidos."
+    return None
+
+
+class DraftExpense(BaseModel):
+    """A expense read from a photo, still editable and not yet saved."""
+    place: str = ""
+    day: Optional[int] = None
+    month: Optional[int] = None
+    year: Optional[int] = None
+    value: Optional[float] = None
+    paid_by: str
+    category_name: Optional[str] = None
+    notes: Optional[str] = None
+    error: Optional[str] = None
+    possible_duplicate: bool = False
+    duplicate_reason: Optional[str] = None
+    selected: bool = True
+
+    def expense_data(self) -> dict:
+        """The VariableExpenseCreate fields of this draft."""
+        return {
+            "place": self.place.strip(),
+            "day": self.day,
+            "month": self.month,
+            "year": self.year,
+            "value": self.value,
+            "paid_by": self.paid_by,
+            "category_name": self.category_name,
+            "notes": (self.notes or "").strip() or None,
+        }
+
+
+class PhotoExtraction(BaseModel):
+    filename: str
+    month: Optional[int] = None
+    rows: list[DraftExpense] = []
+    error: Optional[str] = None
 
 
 class VariableExpenseResponse(BaseModel):
