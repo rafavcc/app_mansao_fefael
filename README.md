@@ -11,6 +11,7 @@ variáveis e fixos e calculando a divisão mensal entre Fafa e Fefe.
 - Ajuste da proporção mensal de pagamento
 - Balanço mensal de quanto cada pessoa pagou e deve pagar
 - Orçamentos por período: vários orçamentos de planejamento (receitas e despesas previstas), cada um válido para uma faixa de meses, com comparação do mês realizado
+- Importar gastos de fotos (IA local): fotografe a página manuscrita do mês, revise as linhas e salve (com modo simulação)
 - Tema claro e escuro
 - API REST para as operações principais
 
@@ -55,6 +56,12 @@ Crie as categorias iniciais. Este comando também cria o banco de dados local
 
 ```bash
 python -m app.seed
+```
+
+Para importar gastos de fotos, copie o arquivo de exemplo e preencha o endereço e a chave do servidor de IA local:
+
+```bash
+cp .env.example .env
 ```
 
 Inicie a aplicação:

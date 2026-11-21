@@ -6,6 +6,7 @@ from app import crud
 from app.database import get_session
 from app.pages.balance import build_balance
 from app.pages.home import build_home
+from app.pages.photo_import import build_photo_import
 from app.pages.income import build_income
 from app.pages.settings import build_settings
 from app.pages.payments import build_payments
@@ -18,6 +19,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 NAV_ITEMS = [
     ("home", "Início", "home", "/"),
     ("variable", "Variáveis", "receipt_long", "/variable"),
+    ("import", "Importar", "photo_camera", "/import"),
     ("regular", "Fixos", "event_repeat", "/regular"),
     ("balance", "Balanço", "account_balance_wallet", "/balance"),
     ("income", "Planejamento", "savings", "/income"),
@@ -59,6 +61,11 @@ def register_pages() -> None:
     def page_variable():
         layout("Gastos Variáveis", "variable")
         build_variable_expenses()
+
+    @ui.page("/import", title="Importar foto")
+    def page_import():
+        layout("Importar foto", "import")
+        build_photo_import()
 
     @ui.page("/regular", title="Gastos Fixos")
     def page_regular():

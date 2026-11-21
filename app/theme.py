@@ -184,6 +184,10 @@ def apply_app_theme() -> None:
             box-shadow: none;
         }
 
+        .casa-row-error {
+            border-color: #dc2626;
+        }
+
         .casa-muted {
             color: var(--casa-muted);
         }
