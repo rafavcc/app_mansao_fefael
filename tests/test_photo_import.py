@@ -191,11 +191,17 @@ def test_rows_from_reply_huge_and_non_finite_numbers_become_none():
     items = [
         good_item(day=10**30, value=10**400),
         good_item(day="9" * 5000),
+        good_item(day="²"),
+        good_item(value="9" * 5000),
         good_item(value=float("inf")),
         good_item(value="1e999"),
         good_item(value=float("nan")),
     ]
     _, rows = rows_from_reply({"items": items}, "FEFE", CATS, TODAY)
-    assert rows[0].day is None and rows[0].value is None and rows[1].day is None
-    assert [r.value for r in rows[2:]] == [None, None, None]
+    assert rows[0].day is None and rows[0].value is None and rows[1].day is None and rows[2].day is None
+    assert [r.value for r in rows[3:]] == [None, None, None, None]
     assert all(r.error and not r.selected for r in rows)
+
+
+def test_parse_month_superscript_digit_is_none():
+    assert parse_month("²") is None

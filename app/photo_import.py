@@ -73,7 +73,7 @@ def parse_month(value) -> Optional[int]:
     if not isinstance(value, str):
         return None
     key = _fold(value)
-    if key.isdigit():
+    if value.strip().isascii() and key.isdigit() and len(key) <= 2:
         return parse_month(int(key))
     return _MONTH_LOOKUP.get(key)
 
@@ -126,7 +126,7 @@ def _number(value) -> Optional[float]:
 def _day(value) -> Optional[int]:
     if isinstance(value, bool):
         return None
-    if isinstance(value, str) and value.strip().isdigit() and len(value.strip()) <= 2:
+    if isinstance(value, str) and value.strip().isascii() and value.strip().isdigit() and len(value.strip()) <= 2:
         value = int(value.strip())
     elif isinstance(value, float) and value.is_integer():
         value = int(value)

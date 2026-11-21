@@ -32,6 +32,7 @@ def test_future_date_is_a_problem():
     ({"value": 0}, "Valor deve ser maior que zero."),
     ({"value": float("inf")}, "Valor deve ser maior que zero."),
     ({"value": float("nan")}, "Valor deve ser maior que zero."),
+    ({"value": 10**400}, "Valor deve ser maior que zero."),
     ({"value": None}, "Valor deve ser maior que zero."),
     ({"category_name": None}, "Selecione um grupo."),
     ({"paid_by": "X"}, "Selecione quem pagou."),
