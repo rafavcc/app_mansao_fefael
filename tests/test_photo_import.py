@@ -3,6 +3,7 @@ from datetime import date
 
 import pytest
 from PIL import Image
+from sqlalchemy import event
 
 from app.photo_import import (
     PhotoImportError,
@@ -216,10 +217,15 @@ from app.llm import LLMError
 from app.photo_import import (
     MAX_PHOTO_BYTES,
     ImportContext,
+    SaveSummary,
     build_prompt,
     extract_photo,
     load_context,
+    mark_duplicates,
+    save_drafts,
 )
+from app.models import VariableExpense
+from app.schemas import DraftExpense
 
 
 def _add_expense(db, place, category, paid_by):
@@ -315,3 +321,99 @@ def test_extract_photo_rejects_huge_files():
         result = extract_photo(b"0" * (MAX_PHOTO_BYTES + 1), "p1.png", CTX, "m", config=MagicMock())
     assert "20 MB" in result.error
     read.assert_not_called()
+
+
+def _draft(place="Mercado", day=25, month=10, year=2026, value=102.90, paid_by="FAFA",
+           category="Comida", **kw):
+    return DraftExpense(place=place, day=day, month=month, year=year, value=value,
+                        paid_by=paid_by, category_name=category, **kw)
+
+
+def _seed_duplicate(db):
+    for name in ("FAFA", "FEFE"):
+        crud.create_user(db, name)
+    crud.create_variable_category(db, "Comida")
+    crud.create_variable_expense(db, {
+        "place": "Padaria", "day": 10, "month": 10, "year": 2026, "value": 102.90,
+        "paid_by": "FAFA", "category_name": "Comida",
+    })
+
+
+def test_mark_duplicates_flags_same_payer_month_year_and_cents_any_day(db_session):
+    _seed_duplicate(db_session)
+    dup = _draft()
+    others = [_draft(value=102.91), _draft(paid_by="FEFE", day=26), _draft(month=11)]
+    mark_duplicates(db_session, [dup, *others])
+    assert dup.possible_duplicate and not dup.selected
+    assert "R$ 102,90" in dup.duplicate_reason and "Out/2026" in dup.duplicate_reason
+    assert "Padaria" in dup.duplicate_reason
+    assert not any(r.possible_duplicate for r in others)
+    assert all(r.selected for r in others)
+
+
+def test_mark_duplicates_within_import_flags_only_later_rows(db_session):
+    _seed_duplicate(db_session)
+    first, second = _draft(day=6, value=45.0), _draft(day=6, value=45.0)
+    mark_duplicates(db_session, [first, second])
+    assert not first.possible_duplicate
+    assert second.possible_duplicate and not second.selected
+    assert second.duplicate_reason == "Repetido nesta importação"
+    again = _draft(day=6, value=45.0)
+    mark_duplicates(db_session, [again], earlier=[first])
+    assert again.possible_duplicate
+    assert again.duplicate_reason == "Repetido nesta importação"
+
+
+def test_mark_duplicates_skips_incomplete_rows(db_session):
+    _seed_duplicate(db_session)
+    rows = [_draft(value=None), _draft(month=None), _draft(year=None)]
+    mark_duplicates(db_session, rows)
+    assert not any(r.possible_duplicate for r in rows)
+
+
+def _count(db):
+    return db.query(VariableExpense).count()
+
+
+def test_save_drafts_dry_run_writes_nothing(db_session, monkeypatch):
+    _seed_duplicate(db_session)
+
+    def boom(*a, **k):
+        raise AssertionError("dry run must not write")
+
+    monkeypatch.setattr(crud, "create_variable_expenses", boom)
+    drafts = [_draft(value=10.0), _draft(value=20.5), _draft(possible_duplicate=True)]
+    summary = save_drafts(db_session, drafts, dry_run=True)
+    assert summary == SaveSummary(count=3, total=pytest.approx(133.4), duplicates=1, saved=False)
+    assert _count(db_session) == 1
+
+
+def test_save_drafts_saves_all_rows(db_session):
+    _seed_duplicate(db_session)
+    summary = save_drafts(db_session, [_draft(place="A", value=10.0, notes="Pix"),
+                                       _draft(place="B", value=20.0)], dry_run=False)
+    assert summary.saved and summary.count == 2 and summary.total == pytest.approx(30.0)
+    rows = db_session.query(VariableExpense).filter(VariableExpense.place.in_(["A", "B"])).all()
+    assert {(r.place, r.value, r.paid_by, r.category_name, r.notes) for r in rows} == {
+        ("A", 10.0, "FAFA", "Comida", "Pix"), ("B", 20.0, "FAFA", "Comida", None)}
+
+
+def test_save_drafts_is_all_or_nothing(db_session):
+    _seed_duplicate(db_session)
+    with pytest.raises(PhotoImportError, match="Linha 2"):
+        save_drafts(db_session, [_draft(), _draft(value=None)], dry_run=False)
+    assert _count(db_session) == 1
+
+
+def test_save_drafts_unknown_category_rolls_back(db_session):
+    _seed_duplicate(db_session)
+    # The shared test engine does not enforce foreign keys like the app's engine does.
+    engine = db_session.get_bind()
+    event.listen(engine, "connect", lambda conn, _rec: conn.execute("PRAGMA foreign_keys=ON"))
+    db_session.close()
+    engine.dispose()
+    with pytest.raises(PhotoImportError):
+        save_drafts(db_session, [_draft(), _draft(category="Inexistente")], dry_run=False)
+    assert _count(db_session) == 1
+    save_drafts(db_session, [_draft(place="Depois")], dry_run=False)
+    assert _count(db_session) == 2

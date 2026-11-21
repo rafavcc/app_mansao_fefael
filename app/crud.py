@@ -77,6 +77,18 @@ def create_variable_expense(db: Session, data: dict) -> VariableExpense:
     return expense
 
 
+def create_variable_expenses(db: Session, items: List[dict]) -> List[VariableExpense]:
+    """Saves all items in one commit; on any failure nothing is written."""
+    expenses = [VariableExpense(**item) for item in items]
+    try:
+        db.add_all(expenses)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return expenses
+
+
 def get_variable_expenses(
     db: Session,
     month: Optional[int] = None,

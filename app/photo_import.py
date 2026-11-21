@@ -6,13 +6,15 @@ import math
 import unicodedata
 from dataclasses import dataclass
 from datetime import date
-from typing import Optional
+from typing import Optional, Sequence
 
 from PIL import Image, ImageOps
+from sqlalchemy.exc import IntegrityError
 
 from app import crud, llm
-from app.formatting import MONTHS_PT, parse_money
+from app.formatting import MONTHS_PT, format_brl, month_name, parse_money
 from app.llm import LLMConfig, LLMError
+from app.models import VariableExpense
 from app.schemas import DraftExpense, PhotoExtraction, variable_expense_problem
 
 logger = logging.getLogger(__name__)
@@ -242,3 +244,76 @@ def extract_photo(
         return PhotoExtraction(
             filename=filename, error=f"Foto '{filename}': erro inesperado ao ler a foto."
         )
+
+
+def _cents(value: float) -> int:
+    return round(value * 100)
+
+
+def mark_duplicates(db, rows: list[DraftExpense], earlier: Sequence[DraftExpense] = ()) -> None:
+    """Flags rows that look already registered (database) or repeated in this import.
+
+    Flagged rows start unchecked; nothing is blocked. Rows without month, year or value are skipped.
+    """
+    seen = {
+        (r.day, r.month, r.year, _cents(r.value))
+        for r in earlier
+        if r.month is not None and r.year is not None and r.value is not None
+    }
+    for row in rows:
+        if row.month is None or row.year is None or row.value is None:
+            continue
+        cents = _cents(row.value)
+        key = (row.day, row.month, row.year, cents)
+        reason = None
+        for existing in db.query(VariableExpense).filter(
+            VariableExpense.paid_by == row.paid_by,
+            VariableExpense.month == row.month,
+            VariableExpense.year == row.year,
+        ):
+            if _cents(existing.value) == cents:
+                reason = (
+                    f"Já existe {format_brl(row.value)} em "
+                    f"{month_name(row.month, short=True)}/{row.year} ({existing.place})"
+                )
+                break
+        if reason is None and key in seen:
+            reason = "Repetido nesta importação"
+        seen.add(key)
+        if reason:
+            row.possible_duplicate = True
+            row.selected = False
+            row.duplicate_reason = reason
+
+
+@dataclass
+class SaveSummary:
+    count: int
+    total: float
+    duplicates: int
+    saved: bool
+
+
+def save_drafts(db, drafts: list[DraftExpense], dry_run: bool) -> SaveSummary:
+    """Validates every draft, then saves all of them or none. With dry_run nothing is written."""
+    items = []
+    for i, draft in enumerate(drafts, start=1):
+        data = draft.expense_data()
+        problem = variable_expense_problem(data)
+        if problem:
+            raise PhotoImportError(f"Linha {i} ({draft.place or 'sem local'}): {problem}")
+        items.append(data)
+    summary = SaveSummary(
+        count=len(items),
+        total=sum(item["value"] for item in items),
+        duplicates=sum(1 for d in drafts if d.possible_duplicate),
+        saved=False,
+    )
+    if dry_run:
+        return summary
+    try:
+        crud.create_variable_expenses(db, items)
+    except IntegrityError as exc:
+        raise PhotoImportError("Não foi possível salvar: grupo ou pessoa inexistente.") from exc
+    summary.saved = True
+    return summary
