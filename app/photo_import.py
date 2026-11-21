@@ -128,7 +128,7 @@ def _number(value) -> Optional[float]:
         result = float(value)
     except OverflowError:
         return None
-    return result if math.isfinite(result) else None
+    return round(result, 2) if math.isfinite(result) else None
 
 
 def _day(value) -> Optional[int]:
@@ -251,8 +251,12 @@ def extract_photo(
         )
 
 
-def _cents(value: float) -> int:
-    return round(value * 100)
+def _cents(value: float) -> Optional[int]:
+    """Value in cents, or None when it cannot be converted (never raises)."""
+    try:
+        return round(value * 100)
+    except (OverflowError, ValueError, TypeError):
+        return None
 
 
 def mark_duplicates(db, rows: list[DraftExpense], earlier: Sequence[DraftExpense] = ()) -> None:
@@ -261,14 +265,18 @@ def mark_duplicates(db, rows: list[DraftExpense], earlier: Sequence[DraftExpense
     Flagged rows start unchecked; nothing is blocked. Rows without month, year or value are skipped.
     """
     seen = {
-        (r.day, r.month, r.year, _cents(r.value))
+        (r.day, r.month, r.year, c)
         for r in earlier
         if r.month is not None and r.year is not None and r.value is not None
+        for c in [_cents(r.value)]
+        if c is not None
     }
     for row in rows:
         if row.month is None or row.year is None or row.value is None:
             continue
         cents = _cents(row.value)
+        if cents is None:
+            continue
         key = (row.day, row.month, row.year, cents)
         reason = None
         for existing in db.query(VariableExpense).filter(

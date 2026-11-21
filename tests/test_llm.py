@@ -131,3 +131,36 @@ def test_model_label():
     assert llm.model_label(ModelInfo("a", True)) == "a"
     assert llm.model_label(ModelInfo("b", False)) == "b (não carregado)"
     assert llm.model_label(ModelInfo("c", None)) == "c"
+
+
+class _BadBody(_Resp):
+    def read(self):
+        return b"\xff\xfe not utf8"
+
+
+def test_non_utf8_body_is_an_llm_error_and_available_models_never_raises(monkeypatch):
+    monkeypatch.setattr(llm, "urlopen", lambda request, timeout: _BadBody(b""))
+    with pytest.raises(LLMError, match="Resposta inesperada"):
+        llm.list_models(cfg())
+    assert llm.available_models(cfg()) == [ModelInfo("m", None)]
+
+
+def test_http_client_exceptions_are_llm_errors(monkeypatch):
+    import http.client
+
+    monkeypatch.setattr(llm, "urlopen", fake_urlopen(http.client.IncompleteRead(b"x"), []))
+    with pytest.raises(LLMError, match="Resposta inesperada"):
+        llm.list_models(cfg())
+    assert llm.available_models(cfg()) == [ModelInfo("m", None)]
+
+
+def test_http_error_body_is_closed(monkeypatch):
+    import io
+
+    exc = HTTPError("http://h", 500, "boom", {}, io.BytesIO(b"oops"))
+    closed = []
+    exc.close = lambda: closed.append(1)
+    monkeypatch.setattr(llm, "urlopen", fake_urlopen(exc, []))
+    with pytest.raises(LLMError, match="500"):
+        llm.list_models(cfg())
+    assert closed

@@ -40,3 +40,14 @@ def test_future_date_is_a_problem():
 ])
 def test_each_problem_message(over, message):
     assert variable_expense_problem(valid(**over)) == message
+
+
+def test_value_above_the_limit_is_too_high():
+    from datetime import date
+    from app.schemas import variable_expense_problem
+
+    data = {"place": "x", "day": 1, "month": 1, "year": 2020, "value": 2_000_000,
+            "paid_by": "FAFA", "category_name": "Outros"}
+    assert variable_expense_problem(data) == "Valor muito alto."
+    assert variable_expense_problem({**data, "value": 1_000_000}) is None
+    assert variable_expense_problem({**data, "value": 1e308}) == "Valor muito alto."

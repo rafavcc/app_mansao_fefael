@@ -100,3 +100,45 @@ def test_extract_rejects_bad_payer_and_missing_files(client, monkeypatch):
     monkeypatch.setattr("app.llm.read_image", lambda *a, **k: pytest.fail("must not be called"))
     assert client.post("/api/variable-expenses/extract", files=_files("a.png"), data={"paid_by": "X"}).status_code == 422
     assert client.post("/api/variable-expenses/extract", data={"paid_by": "FAFA"}).status_code == 422
+
+
+def test_extract_huge_value_becomes_an_error_row_not_a_500(client, monkeypatch):
+    monkeypatch.setattr("app.llm.read_image", lambda *a, **k: _reply("1e308"))
+    resp = client.post("/api/variable-expenses/extract", files=_files("a.png"), data={"paid_by": "FAFA"})
+    assert resp.status_code == 200
+    row = resp.json()[0]["rows"][0]
+    assert row["error"] == "Valor muito alto."
+
+
+def test_extract_survives_a_failing_duplicate_check(client, monkeypatch):
+    monkeypatch.setattr("app.llm.read_image", lambda *a, **k: _reply(5))
+
+    def boom(*a, **k):
+        raise RuntimeError("x")
+
+    monkeypatch.setattr("app.photo_import.mark_duplicates", boom)
+    resp = client.post("/api/variable-expenses/extract", files=_files("a.png", "b.png"), data={"paid_by": "FAFA"})
+    assert resp.status_code == 200
+    assert all("a.png" in p["error"] or "b.png" in p["error"] for p in resp.json())
+
+
+def test_extract_reads_at_most_the_size_limit_plus_one_byte(client, monkeypatch):
+    monkeypatch.setattr("app.photo_import.MAX_PHOTO_BYTES", 10)
+    monkeypatch.setattr("app.llm.read_image", lambda *a, **k: pytest.fail("must not be called"))
+    big = [("files", ("g.png", b"x" * 1000, "image/png"))]
+    resp = client.post("/api/variable-expenses/extract", files=big, data={"paid_by": "FAFA"})
+    assert resp.status_code == 200
+    assert "muito grande" in resp.json()[0]["error"]
+
+
+def test_extract_rejects_more_than_ten_photos(client, monkeypatch):
+    monkeypatch.setattr("app.llm.read_image", lambda *a, **k: pytest.fail("must not be called"))
+    resp = client.post(
+        "/api/variable-expenses/extract", files=_files(*[f"{i}.png" for i in range(11)]), data={"paid_by": "FAFA"}
+    )
+    assert resp.status_code == 422
+    assert "10" in resp.json()["detail"]
+    monkeypatch.setattr("app.llm.read_image", lambda *a, **k: _reply(5))
+    ok = client.post("/api/variable-expenses/extract", files=_files(*[f"{i}.png" for i in range(10)]),
+                     data={"paid_by": "FAFA"})
+    assert ok.status_code == 200 and len(ok.json()) == 10

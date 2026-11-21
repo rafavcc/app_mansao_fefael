@@ -110,6 +110,21 @@ def _seed_reference_data(session_factory):
             crud.create_regular_category(db, name)
 
 
+def _test_session_scope(session_factory):
+    """Same shape as app.database.get_session, bound to the test database."""
+    from contextlib import contextmanager
+
+    @contextmanager
+    def scope():
+        db = session_factory()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    return scope
+
+
 @pytest.fixture(scope="function")
 def client(test_db):
     """Create a FastAPI test client with our test database."""
@@ -133,6 +148,8 @@ def client(test_db):
     
     # Set the dependency override in the app BEFORE creating TestClient
     main.app.dependency_overrides[original_get_db] = override_get_db
+    # Endpoints that open short sessions of their own (photo extract) must use the test DB too.
+    main.app.dependency_overrides[database.get_session_factory] = lambda: _test_session_scope(test_SessionLocal)
     
     _seed_reference_data(test_SessionLocal)
 
@@ -169,6 +186,8 @@ def client_with_session(test_db):
     
     # Set the dependency override in the app BEFORE creating TestClient
     main.app.dependency_overrides[original_get_db] = override_get_db
+    # Endpoints that open short sessions of their own (photo extract) must use the test DB too.
+    main.app.dependency_overrides[database.get_session_factory] = lambda: _test_session_scope(test_SessionLocal)
     
     # Create TestClient for FastAPI - it will use our overridden get_db
     test_client = TestClient(main.app)

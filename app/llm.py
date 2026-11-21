@@ -1,5 +1,6 @@
 """Cliente do servidor de IA local (API compatível com OpenAI), só com stdlib."""
 import base64
+import http.client
 import json
 import os
 import socket
@@ -60,6 +61,8 @@ def _request(config: LLMConfig, path: str, timeout: float, body: Optional[dict] 
             text = e.read().decode("utf-8", "replace")[:300]
         except Exception:
             text = ""
+        finally:
+            e.close()
         raise LLMError(f"O servidor de IA respondeu com erro {e.code}: {text}") from e
     except (TimeoutError, socket.timeout) as e:
         raise LLMError("O servidor de IA não respondeu a tempo.") from e
@@ -67,7 +70,7 @@ def _request(config: LLMConfig, path: str, timeout: float, body: Optional[dict] 
         if isinstance(e.reason, (TimeoutError, socket.timeout)):
             raise LLMError("O servidor de IA não respondeu a tempo.") from e
         raise LLMError(f"Não foi possível conectar ao servidor de IA em {config.base_url}.") from e
-    except json.JSONDecodeError as e:
+    except (ValueError, http.client.HTTPException) as e:  # includes JSONDecodeError, UnicodeDecodeError
         raise LLMError("Resposta inesperada do servidor de IA.") from e
     except OSError as e:
         raise LLMError(f"Não foi possível conectar ao servidor de IA em {config.base_url}.") from e

@@ -2,6 +2,7 @@ import logging
 from datetime import date
 
 from nicegui import app, run, ui
+from sqlalchemy.exc import OperationalError
 
 from app.components import date_input, money_input, parse_date_input
 from app.database import get_session
@@ -262,6 +263,9 @@ def build_photo_import() -> None:
                     summary = save_drafts(db, drafts, dry_run=dry_run.value)
             except PhotoImportError as exc:
                 ui.notify(str(exc), type="negative")
+                return
+            except OperationalError:
+                ui.notify("Banco de dados ocupado, tente de novo.", type="negative")
                 return
             if not summary.saved:
                 show_summary(summary)

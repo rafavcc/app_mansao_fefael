@@ -16,7 +16,7 @@ from app.env import load_env_file
 # Load .env first so it can also set CASA_DB_PATH / CASA_STORAGE_SECRET
 load_env_file()
 
-from app.database import get_db, get_session, init_db
+from app.database import get_db, get_session, get_session_factory, init_db
 from app import crud, llm, photo_import
 from app.backup import backup_loop
 from app.schemas import (
@@ -29,6 +29,8 @@ from app.ui import STATIC_DIR, register_pages
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
+
+MAX_PHOTOS_PER_REQUEST = 10
 
 
 @asynccontextmanager
@@ -60,18 +62,29 @@ def extract_variable_expenses(
     files: list[UploadFile] = File(...),
     paid_by: str = Form(...),
     model: Optional[str] = Form(None),
-    db: Session = Depends(get_db),
+    session_factory=Depends(get_session_factory),
 ):
     """Reads each photo with the vision LLM and returns draft rows. Never saves anything."""
     if paid_by not in PAYERS:
         raise HTTPException(status_code=422, detail="Pagador inválido.")
+    if len(files) > MAX_PHOTOS_PER_REQUEST:
+        raise HTTPException(status_code=422, detail=f"Envie no máximo {MAX_PHOTOS_PER_REQUEST} fotos por vez.")
     model = model or llm.llm_config().model
-    ctx = photo_import.load_context(db, paid_by)
+    # Short sessions only: a session kept open across the slow LLM calls would hold a SQLite lock.
+    with session_factory() as db:
+        ctx = photo_import.load_context(db, paid_by)
     results: list[PhotoExtraction] = []
     earlier = []
     for upload in files:
-        result = photo_import.extract_photo(upload.file.read(), upload.filename or "foto", ctx, model)
-        photo_import.mark_duplicates(db, result.rows, earlier=earlier)
+        name = upload.filename or "foto"
+        # One byte over the limit is enough for extract_photo to reject the photo.
+        result = photo_import.extract_photo(upload.file.read(photo_import.MAX_PHOTO_BYTES + 1), name, ctx, model)
+        try:
+            with session_factory() as db:
+                photo_import.mark_duplicates(db, result.rows, earlier=earlier)
+        except Exception:
+            logger.exception("Erro ao verificar duplicados da foto %s", name)
+            result = PhotoExtraction(filename=name, error=f"Foto '{name}': erro ao verificar duplicados.")
         earlier.extend(result.rows)
         results.append(result)
     return results

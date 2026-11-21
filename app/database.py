@@ -62,6 +62,15 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 class Base(DeclarativeBase):
     pass
 
+def get_session_factory():
+    """FastAPI dependency returning the callable that opens short-lived sessions (get_session).
+
+    Endpoints that make slow calls (e.g. the vision LLM) use it instead of get_db so they never
+    keep a transaction, and with it a SQLite lock, open while waiting.
+    """
+    return get_session
+
+
 def get_db():
     """
     Fast API dependency: fetches a database session

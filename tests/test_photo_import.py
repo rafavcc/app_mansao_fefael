@@ -417,3 +417,20 @@ def test_save_drafts_unknown_category_rolls_back(db_session):
     assert _count(db_session) == 1
     save_drafts(db_session, [_draft(place="Depois")], dry_run=False)
     assert _count(db_session) == 2
+
+
+def test_number_rounds_to_two_decimals():
+    from app.photo_import import _number
+
+    assert _number(10.123456) == 10.12
+    assert _number("3,456") == 3.46
+
+
+def test_cents_never_raises_and_duplicates_skip_unconvertible_rows(db_session):
+    from app.photo_import import _cents, mark_duplicates
+    from app.schemas import DraftExpense
+
+    assert _cents(1e308) is None
+    row = DraftExpense(place="x", day=1, month=1, year=2020, value=1e308, paid_by="FAFA", category_name="Outros")
+    mark_duplicates(db_session, [row], earlier=[row])
+    assert row.possible_duplicate is False

@@ -39,6 +39,9 @@ class VariableExpenseCreate(ExpenseDate):
         return self
 
 
+MAX_EXPENSE_VALUE = 1_000_000
+
+
 def variable_expense_problem(data: dict) -> Optional[str]:
     """First problem found in variable expense data (as a Portuguese message), or None."""
     if not (data.get("place") or "").strip():
@@ -56,6 +59,8 @@ def variable_expense_problem(data: dict) -> Optional[str]:
         valid_value = False
     if not valid_value:
         return "Valor deve ser maior que zero."
+    if value > MAX_EXPENSE_VALUE:
+        return "Valor muito alto."
     if not data.get("category_name"):
         return "Selecione um grupo."
     if data.get("paid_by") not in PAYERS:
