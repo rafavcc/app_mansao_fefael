@@ -62,6 +62,7 @@ def test_read_image_sends_openai_compatible_request(monkeypatch):
     assert body["model"] == "mod"
     assert body["temperature"] == 0
     assert body["stream"] is False
+    assert body["chat_template_kwargs"] == {"enable_thinking": False}
     content = body["messages"][0]["content"]
     assert content[0] == {"type": "text", "text": "olá"}
     url = content[1]["image_url"]["url"]

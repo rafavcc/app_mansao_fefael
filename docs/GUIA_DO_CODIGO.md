@@ -292,6 +292,52 @@ significa que Fafa pagou menos e deve o valor absoluto a Fefe.
 5. Faça uma mudança funcional pequena na página.
 6. Escreva um teste para a mudança antes de partir para uma refatoração maior.
 
+## Importar gastos de fotos
+
+Lê uma página manuscrita de gastos (colunas Cartão e Pix) com um modelo de visão
+local e cria rascunhos de despesas variáveis.
+
+Fluxo: envio da foto -> `photo_import.extract_photo` (reduz a imagem, monta o
+prompt com os grupos e o histórico do pagador, chama `llm.read_image`, valida as
+linhas) -> revisão na tela -> `save_drafts` (tudo ou nada; com o "dry run" ligado
+nada é gravado). A foto nunca é guardada: fica só na memória.
+
+Chaves do `.env` (na raiz; variáveis de ambiente reais têm prioridade):
+
+```
+CASA_LLM_BASE_URL=http://192.168.0.33:8889/v1
+CASA_LLM_API_KEY=sk-unsloth-...
+CASA_LLM_MODEL=unsloth/gemma-4-12b-it-GGUF:UD-Q4_K_XL
+```
+
+Medições com uma página real (gemma-4-12b, servidor na rede local, 8 linhas):
+
+| Situação | Tempo | Resultado |
+|---|---|---|
+| Pensamento ligado, sem redução | 112 s em 1 de 5 chamadas; as outras 4 estouraram os 600 s sem resposta | 8 linhas |
+| Pensamento desligado (`enable_thinking: false`), com ou sem redução | 23 a 25 s | 8 linhas, datas e seções certas, 7 de 8 valores certos |
+
+- O modelo "pensa" antes de responder e, em várias chamadas, ficou raciocinando por
+  mais de 10 minutos sem produzir resposta. `llm.read_image` agora envia
+  `chat_template_kwargs: {"enable_thinking": false}`: mesma qualidade, cerca de 25 s.
+- Redução (`downscale=True`, padrão mantido): a precisão é igual com e sem redução
+  (a foto de teste já tinha 1600 px, então só mudou PNG para JPEG); a redução
+  mantém fotos grandes de celular leves.
+- Erros típicos de leitura: um valor (`102,90` lido como `102,00`), locais e
+  observações (`meli-tapete`, `abafador`, `bolo mn`) e o grupo sugerido, que varia
+  entre chamadas mesmo com temperatura 0. Por isso a tela de revisão é obrigatória.
+- Modelo não carregado: o servidor não troca de modelo por pedido (opção "Switch
+  model by request" desligada) e responde 404 em 0,1 s com a explicação em inglês;
+  o app mostra essa mensagem na íntegra. Nada é carregado ou descarregado.
+
+Para testar no terminal, sem gravar nada no banco (use uma cópia do `casa.db`
+em `CASA_DB_PATH`):
+
+```bash
+CASA_DB_PATH=/caminho/copia.db venv/bin/python scripts/try_photo_import.py foto.png \
+    [--payer FEFE] [--model ID] [--no-downscale] [--show-prompt]
+```
+
 ## Comandos úteis
 
 ```bash

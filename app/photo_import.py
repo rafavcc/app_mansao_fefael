@@ -190,8 +190,13 @@ def build_prompt(categories: list[str], examples: list[tuple[str, str]]) -> str:
         '"place": <local>, "note": <texto ou null>, "value": <valor>, '
         '"section": "cartao" ou "pix", "category_name": <grupo>}]}',
         '"section" é "cartao" para gastos no cartão e "pix" para gastos no Pix.',
-        'Escreva "value" como número com ponto decimal (ex.: 25.5), sem R$.',
-        '"note" é a palavrinha escrita acima do local; use null se não houver.',
+        "A página tem duas colunas, Cartão e Pix: leia as duas, linha por linha.",
+        "O mês está no título da página; cada linha começa com dia/mês.",
+        'Os valores são escritos com vírgula e sempre têm dois decimais (ex.: 102,90). '
+        'Escreva "value" como número com ponto decimal (ex.: 102.9), sem R$; '
+        "não troque nem omita dígitos.",
+        '"place" é o nome do estabelecimento, copiado como está escrito; '
+        '"note" é a palavrinha pequena escrita acima ou ao lado do local; use null se não houver.',
         "Grupos disponíveis: " + ", ".join(categories) + ".",
         "O category_name deve ser exatamente um desses grupos.",
     ]

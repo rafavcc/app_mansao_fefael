@@ -108,6 +108,9 @@ def read_image(config: LLMConfig, model: str, prompt: str, image: bytes, mime: s
         "model": model,
         "temperature": 0,
         "stream": False,
+        # Reading handwriting does not need chain of thought; with it on, gemma sometimes
+        # reasons for 10+ minutes without answering (measured on the real server).
+        "chat_template_kwargs": {"enable_thinking": False},
         "messages": [{
             "role": "user",
             "content": [
