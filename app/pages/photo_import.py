@@ -1,5 +1,5 @@
+import logging
 from datetime import date
-from typing import Optional
 
 from nicegui import app, run, ui
 
@@ -14,7 +14,32 @@ from app.photo_import import (
 from app.schemas import DraftExpense, PhotoExtraction, variable_expense_problem
 from app.theme import card_classes, page_container
 
+logger = logging.getLogger(__name__)
 MODEL_KEY = "photo_import_model"
+
+
+def date_text(draft: DraftExpense) -> str:
+    """ISO date for the date field; empty when the draft has no valid date."""
+    try:
+        return date(draft.year, draft.month, draft.day).isoformat()
+    except (TypeError, ValueError):
+        return ""
+
+
+def apply_date_text(draft: DraftExpense, text) -> None:
+    """Writes the date field's text to the draft; an invalid or empty date leaves it undated."""
+    when = parse_date_input(text)
+    draft.day, draft.month, draft.year = (when.day, when.month, when.year) if when else (None, None, None)
+
+
+def _load_context(paid_by: str):
+    with get_session() as db:
+        return load_context(db, paid_by)
+
+
+def _mark_duplicates(rows: list[DraftExpense], earlier: list[DraftExpense]) -> None:
+    with get_session() as db:
+        mark_duplicates(db, rows, earlier)
 
 
 class DraftRow:
@@ -27,9 +52,10 @@ class DraftRow:
         with self.container:
             with ui.row().classes("w-full items-center gap-2"):
                 self.checkbox = ui.checkbox(value=draft.selected, on_change=self._select).mark("row-select")
-                self.date = date_input("Data", self._date()).props(f"max={date.today().isoformat()}") \
+                self.date = date_input("Data", date.today()).props(f"max={date.today().isoformat()}") \
                     .classes("w-40").mark("row-date")
-                self.date.on_value_change(self._edit)
+                self.date.value = date_text(draft)
+                self.date.on_value_change(self._edit_date)
                 self.place = ui.input("Local", value=draft.place).classes("flex-1 min-w-[10rem]").mark("row-place")
                 self.place.on_value_change(self._edit)
                 value = draft.value
@@ -48,20 +74,15 @@ class DraftRow:
                 self.error = ui.label().classes("text-xs casa-negative")
         self._refresh_state()
 
-    def _date(self) -> date:
-        d = self.draft
-        try:
-            return date(d.year, d.month, d.day)
-        except (TypeError, ValueError):
-            return date.today()
-
     def _select(self, e) -> None:
         self.draft.selected = bool(e.value)
 
+    def _edit_date(self, _=None) -> None:
+        apply_date_text(self.draft, self.date.value)
+        self._edit()
+
     def _edit(self, _=None) -> None:
         d = self.draft
-        when = parse_date_input(self.date.value)
-        d.day, d.month, d.year = (when.day, when.month, when.year) if when else (None, None, None)
         d.place = (self.place.value or "").strip()
         d.value = parse_money(self.value.value)
         d.category_name = self.category.value
@@ -122,7 +143,10 @@ class Section:
 
     def remove_saved(self, saved: list[DraftExpense]) -> None:
         ids = {id(d) for d in saved}
-        for row in [r for r in self.rows if id(r.draft) in ids]:
+        removed = [r for r in self.rows if id(r.draft) in ids]
+        if not removed:
+            return
+        for row in removed:
             row.delete()
             self.rows.remove(row)
         if self.rows:
@@ -187,9 +211,12 @@ def build_photo_import() -> None:
 
         ui.timer(0.1, load_models, once=True)
 
+        def refresh_save_button() -> None:
+            save_button.set_visibility(any(s.rows for s in sections))
+
         def drop_section(section: Section) -> None:
             sections.remove(section)
-            save_button.set_visibility(bool(sections))
+            refresh_save_button()
 
         async def read_photos() -> None:
             if not paid_by.value:
@@ -204,17 +231,20 @@ def build_photo_import() -> None:
             read_button.disable()
             progress.set_visibility(True)
             try:
-                with get_session() as db:
-                    ctx = load_context(db, paid_by.value)
+                ctx = await run.io_bound(_load_context, paid_by.value)
                 for i, (name, data) in enumerate(batch, start=1):
                     progress_label.set_text(f"Lendo foto {i} de {len(batch)}…")
-                    extraction = await run.io_bound(extract_photo, data, name, ctx, model.value)
+                    try:
+                        extraction = await run.io_bound(extract_photo, data, name, ctx, model.value)
+                        earlier = [r.draft for s in sections for r in s.rows]
+                        await run.io_bound(_mark_duplicates, extraction.rows, earlier)
+                    except Exception:
+                        logger.exception("Erro ao processar a foto %s", name)
+                        extraction = PhotoExtraction(
+                            filename=name, error=f"Foto '{name}': erro inesperado ao ler a foto.")
                     data = None
-                    earlier = [r.draft for s in sections for r in s.rows]
-                    with get_session() as db:
-                        mark_duplicates(db, extraction.rows, earlier)
                     sections.append(Section(extraction, ctx.categories, review, drop_section))
-                    save_button.set_visibility(True)
+                    refresh_save_button()
                     batch[i - 1] = (name, b"")
             finally:
                 batch.clear()
@@ -239,6 +269,7 @@ def build_photo_import() -> None:
             ui.notify(f"{summary.count} gastos salvos.", type="positive")
             for section in list(sections):
                 section.remove_saved(drafts)
+            refresh_save_button()
 
         read_button.on_click(read_photos)
         save_button.on_click(save_selected)
