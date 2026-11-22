@@ -434,3 +434,19 @@ def test_cents_never_raises_and_duplicates_skip_unconvertible_rows(db_session):
     row = DraftExpense(place="x", day=1, month=1, year=2020, value=1e308, paid_by="FAFA", category_name="Outros")
     mark_duplicates(db_session, [row], earlier=[row])
     assert row.possible_duplicate is False
+
+
+def test_load_system_prompt_reads_the_prompt_file():
+    from app.photo_import import load_system_prompt
+
+    text = load_system_prompt()
+    assert "cursive" in text and "BRL" in text
+
+
+def test_extract_photo_passes_the_system_prompt():
+    from app.photo_import import extract_photo, load_system_prompt
+
+    ctx = ImportContext(paid_by="FEFE", categories=["Outros"], prompt="PROMPT")
+    with patch("app.llm.read_image", return_value=REPLY) as read:
+        extract_photo(make_image(50, 40), "p.png", ctx, "m", config=MagicMock(), today=TODAY)
+    assert read.call_args.kwargs["system"] == load_system_prompt()

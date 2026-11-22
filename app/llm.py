@@ -105,8 +105,19 @@ def model_label(info: ModelInfo) -> str:
     return info.id + (" (não carregado)" if info.loaded is False else "")
 
 
-def read_image(config: LLMConfig, model: str, prompt: str, image: bytes, mime: str) -> str:
+def read_image(
+    config: LLMConfig, model: str, prompt: str, image: bytes, mime: str, system: Optional[str] = None
+) -> str:
     data_url = f"data:{mime};base64,{base64.b64encode(image).decode()}"
+    messages = [{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": data_url}},
+        ],
+    }]
+    if system:
+        messages.insert(0, {"role": "system", "content": system})
     body = {
         "model": model,
         "temperature": 0,
@@ -114,13 +125,7 @@ def read_image(config: LLMConfig, model: str, prompt: str, image: bytes, mime: s
         # Reading handwriting does not need chain of thought; with it on, gemma sometimes
         # reasons for 10+ minutes without answering (measured on the real server).
         "chat_template_kwargs": {"enable_thinking": False},
-        "messages": [{
-            "role": "user",
-            "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": data_url}},
-            ],
-        }],
+        "messages": messages,
     }
     payload = _request(config, "/chat/completions", config.timeout, body)
     try:

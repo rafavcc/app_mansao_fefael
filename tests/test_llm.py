@@ -164,3 +164,20 @@ def test_http_error_body_is_closed(monkeypatch):
     with pytest.raises(LLMError, match="500"):
         llm.list_models(cfg())
     assert closed
+
+
+def test_read_image_sends_system_message_first_when_given(monkeypatch):
+    calls = []
+    monkeypatch.setattr(llm, "urlopen", fake_urlopen(OK, calls))
+    llm.read_image(cfg(), "m", "p", b"x", "image/png", system="seja cuidadoso")
+    messages = json.loads(calls[0][0].data)["messages"]
+    assert messages[0] == {"role": "system", "content": "seja cuidadoso"}
+    assert messages[1]["role"] == "user"
+
+
+def test_read_image_without_system_sends_only_the_user_message(monkeypatch):
+    calls = []
+    monkeypatch.setattr(llm, "urlopen", fake_urlopen(OK, calls))
+    llm.read_image(cfg(), "m", "p", b"x", "image/png")
+    messages = json.loads(calls[0][0].data)["messages"]
+    assert [m["role"] for m in messages] == ["user"]

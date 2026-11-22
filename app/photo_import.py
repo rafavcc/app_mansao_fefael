@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import unicodedata
+from pathlib import Path
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional, Sequence
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 MAX_LONG_SIDE = 1600
 MAX_PHOTO_BYTES = 20 * 1024 * 1024
 FALLBACK_CATEGORY = "Outros"
+SYSTEM_PROMPT_PATH = Path(__file__).parent / "prompts" / "system.md"
 
 _SECTIONS = {"cartao": "Cartão", "card": "Cartão", "pix": "Pix"}
 
@@ -221,6 +223,11 @@ def _sniff_mime(data: bytes) -> str:
     raise PhotoImportError("Arquivo não é uma imagem suportada (use JPG ou PNG).")
 
 
+def load_system_prompt() -> str:
+    """Standing instructions sent as the system message; edit app/prompts/system.md to tune them."""
+    return SYSTEM_PROMPT_PATH.read_text(encoding="utf-8").strip()
+
+
 def extract_photo(
     data: bytes,
     filename: str,
@@ -238,7 +245,9 @@ def extract_photo(
             image, mime = prepare_image(data)
         else:
             image, mime = data, _sniff_mime(data)
-        text = llm.read_image(config or llm.llm_config(), model, ctx.prompt, image, mime)
+        text = llm.read_image(
+            config or llm.llm_config(), model, ctx.prompt, image, mime, system=load_system_prompt()
+        )
         reply = parse_reply(text)
         month, rows = rows_from_reply(reply, ctx.paid_by, ctx.categories, today or date.today())
         return PhotoExtraction(filename=filename, month=month, rows=rows)
