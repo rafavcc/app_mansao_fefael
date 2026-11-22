@@ -13,10 +13,12 @@ from app.components import (
     money_input,
     person_split,
     settlement_banner,
+    settlement_text,
     value_axis,
     year_select,
 )
 from app.database import get_session
+from app.payments import attach_settlements
 from app.formatting import format_brl, format_number_br, format_pct, month_name, parse_money
 from app.theme import card_classes, page_container
 
@@ -306,13 +308,14 @@ def build_balance() -> None:
 
     def reload_month(month: int) -> None:
         with get_session() as db:
-            state["months"][month] = calculate_month_detail(
-                db,
-                month,
-                int(year.value),
-            )
+            state["months"][month] = calculate_month_detail(db, month, int(year.value))
+            # Oldest-first allocation: a change can alter the status of later months too.
+            attach_settlements(db, list(state["months"].values()))
 
-        render_month(month, expanded=True)
+        for number in state["months"]:
+            section = sections.get(number)
+            was_open = isinstance(section, ui.expansion) and section.value
+            render_month(number, expanded=number == month or was_open)
         render_chart()
 
     def render_month(month: int, expanded: bool) -> None:
@@ -344,9 +347,7 @@ def build_balance() -> None:
                         ui.label(
                             f"{month_name(month)} {detail['year']}"
                         ).classes("font-bold")
-                        ui.label(
-                            settlement_banner(detail)
-                        )
+                        ui.label(settlement_text(detail)).classes("text-xs casa-muted")
 
                     ui.label(
                         format_brl(detail["total_expenses"])
@@ -378,7 +379,7 @@ def build_balance() -> None:
         holders.clear()
 
         with get_session() as db:
-            months = calculate_year_months(db, int(year.value))
+            months = attach_settlements(db, calculate_year_months(db, int(year.value)))
 
         for detail in months:
             month = detail["month"]

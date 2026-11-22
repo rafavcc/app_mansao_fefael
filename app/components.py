@@ -105,12 +105,39 @@ def kpi_card(
             ui.label(hint).classes(f"text-xs {hint_classes}")
 
 
-def settlement_text(balance: float) -> str:
+def _raw_settlement_text(balance: float) -> str:
     if balance > 0:
         return f"Fefe deve {format_brl(balance)} para Fafa"
     if balance < 0:
         return f"Fafa deve {format_brl(-balance)} para Fefe"
     return "Contas iguais"
+
+
+def settlement_text(detail: dict) -> str:
+    """Who owes whom for a month, using its settlement when present."""
+    settlement = detail.get("settlement")
+    if not settlement:
+        return _raw_settlement_text(detail["balance"])
+    status, owed = settlement["status"], settlement["owed"]
+    if status in ("open", "credit"):
+        return _raw_settlement_text(owed)
+    if status == "partial":
+        return f"Fefe ainda deve {format_brl(settlement['remaining'])} para Fafa"
+    if status == "paid":
+        return f"Quite · Fefe pagou {format_brl(owed)}"
+    if status == "prebilling":
+        return "Quite"
+    if status == "in_progress":
+        return f"{_raw_settlement_text(detail['balance'])} · mês em andamento"
+    return "Contas iguais"
+
+
+def is_settled(detail: dict) -> bool:
+    """True when the month needs no payment (paid, even, or before billing started)."""
+    settlement = detail.get("settlement")
+    if not settlement:
+        return not detail["balance"]
+    return settlement["status"] in ("paid", "settled", "prebilling")
 
 
 def change_hint(detail: dict) -> tuple[str, str]:
@@ -139,15 +166,21 @@ def change_hint(detail: dict) -> tuple[str, str]:
     )
 
 
-def settlement_banner(bal: dict) -> None:
+def settlement_banner(detail: dict) -> None:
     with ui.card().classes(card_classes("w-full p-3")):
         with ui.row().classes("items-center gap-2 no-wrap"):
             ui.icon(
-                "swap_horiz" if bal["balance"] else "check_circle"
+                "check_circle" if is_settled(detail) else "swap_horiz"
             ).classes("text-2xl casa-muted")
-            ui.label(
-                settlement_text(bal["balance"])
-            ).classes("text-lg font-medium")
+            with ui.column().classes("gap-0"):
+                ui.label(
+                    settlement_text(detail)
+                ).classes("text-lg font-medium")
+                settlement = detail.get("settlement")
+                if settlement and settlement["status"] == "partial":
+                    ui.label(
+                        f"de {format_brl(settlement['owed'])}"
+                    ).classes("text-xs casa-muted")
 
 
 def person_split(bal: dict) -> None:

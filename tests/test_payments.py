@@ -3,7 +3,9 @@ from datetime import date
 import pytest
 
 from app import crud
-from app.payments import calculate_payments, closed_months
+from app.balance import calculate_year_months
+from app.components import settlement_text
+from app.payments import attach_settlements, calculate_payments, closed_months, month_settlements
 
 FIRST = (2026, 7)
 
@@ -109,3 +111,56 @@ def test_payment_must_be_positive(db_session):
     from sqlalchemy.exc import IntegrityError
     with pytest.raises(IntegrityError):
         crud.save_payment(db_session, {"paid_on": date(2026, 11, 1), "value": 0})
+
+
+def test_month_settlements_match_calculate_payments(db_session):
+    expense(db_session, 7, 300)
+    expense(db_session, 8, 300)
+    pay(db_session, 150)
+    today = date(2026, 10, 2)
+    assert month_settlements(db_session, today=today, first=FIRST) == calc(db_session, today)["months"]
+
+
+def test_attach_settlements_statuses(db_session):
+    expense(db_session, 6, 300)
+    expense(db_session, 7, 300)
+    expense(db_session, 10, 300)
+    pay(db_session, 100)
+    today = date(2026, 10, 2)
+    details = calculate_year_months(db_session, 2026, today=today)
+    by_month = {d["month"]: d["settlement"] for d in attach_settlements(db_session, details, today, FIRST)}
+    assert by_month[6]["status"] == "prebilling"
+    assert by_month[6]["owed"] == 0.0
+    assert by_month[7]["status"] == "paid"
+    assert by_month[10]["status"] == "in_progress"
+    assert by_month[10]["owed"] == details[9]["balance"]
+
+
+def test_paid_months_show_quite_on_the_balance_page(db_session):
+    expense(db_session, 7, 300)
+    expense(db_session, 8, 300)
+    pay(db_session, 200)
+    today = date(2026, 10, 2)
+    details = attach_settlements(db_session, calculate_year_months(db_session, 2026, today=today), today, FIRST)
+    for month in (7, 8):
+        detail = details[month - 1]
+        assert detail["settlement"]["status"] == "paid"
+        assert settlement_text(detail).startswith("Quite")
+
+
+def test_changing_a_ratio_cascades_to_later_months(db_session):
+    expense(db_session, 7, 900)  # Fefe owes 300
+    expense(db_session, 8, 300)  # Fefe owes 100
+    pay(db_session, 200)
+    today = date(2026, 10, 2)
+
+    def statuses():
+        details = attach_settlements(db_session, calculate_year_months(db_session, 2026, today=today), today, FIRST)
+        return details[6]["settlement"], details[7]["settlement"]
+
+    july, august = statuses()
+    assert (july["status"], august["status"]) == ("partial", "open")
+    crud.set_month_ratio(db_session, 7, 2026, 5 / 6)  # Fafa share up: July owed drops to 150
+    july, august = statuses()
+    assert july["status"] == "paid"
+    assert (august["status"], august["remaining"]) == ("partial", 50)

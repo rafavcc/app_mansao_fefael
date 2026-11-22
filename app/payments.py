@@ -20,16 +20,10 @@ def closed_months(today: date, first: tuple[int, int] = FIRST_BILLED_MONTH) -> l
     return months
 
 
-def calculate_payments(db: Session, today: Optional[date] = None, first: tuple[int, int] = FIRST_BILLED_MONTH) -> dict:
-    """Debt of Fefe to Fafa. A closed month's saldo is Fefe's share minus what Fefe paid directly.
-
-    Positive saldo = Fefe owes Fafa; negative = Fafa owes Fefe and reduces the debt.
-    Payments (advance ones too) are applied to the oldest owed months first;
-    an excess stays as credit that reduces the next months.
-    """
+def month_settlements(db: Session, today: Optional[date] = None, first: tuple[int, int] = FIRST_BILLED_MONTH) -> list[dict]:
+    """Per closed month: owed, covered, remaining and status, oldest first."""
     today = today or date.today()
-    payments = crud.get_payments(db)
-    paid_total = round(sum(p.value for p in payments), 2)
+    paid_total = round(sum(p.value for p in crud.get_payments(db)), 2)
 
     months = []
     for year, month in closed_months(today, first):
@@ -52,6 +46,37 @@ def calculate_payments(db: Session, today: Optional[date] = None, first: tuple[i
             remaining=remaining,
             status="paid" if remaining == 0 else "partial" if covered > 0 else "open",
         )
+    return months
+
+
+def settlement_for(settlements_by_month: dict, year: int, month: int, balance: float, first: tuple[int, int] = FIRST_BILLED_MONTH) -> dict:
+    """Settlement of one month: the computed one, or a prebilling / in-progress placeholder."""
+    if (year, month) in settlements_by_month:
+        return settlements_by_month[(year, month)]
+    if (year, month) < first:
+        return {"status": "prebilling", "owed": 0.0, "covered": 0.0, "remaining": 0.0}
+    return {"status": "in_progress", "owed": balance, "covered": 0.0, "remaining": balance if balance > 0 else 0.0}
+
+
+def attach_settlements(db: Session, details: list[dict], today: Optional[date] = None, first: tuple[int, int] = FIRST_BILLED_MONTH) -> list[dict]:
+    """Set detail["settlement"] on each month detail, with a single settlement pass."""
+    by_month = {(m["year"], m["month"]): m for m in month_settlements(db, today, first)}
+    for detail in details:
+        if detail:
+            detail["settlement"] = settlement_for(by_month, detail["year"], detail["month"], detail["balance"], first)
+    return details
+
+
+def calculate_payments(db: Session, today: Optional[date] = None, first: tuple[int, int] = FIRST_BILLED_MONTH) -> dict:
+    """Debt of Fefe to Fafa. A closed month's saldo is Fefe's share minus what Fefe paid directly.
+
+    Positive saldo = Fefe owes Fafa; negative = Fafa owes Fefe and reduces the debt.
+    Payments (advance ones too) are applied to the oldest owed months first;
+    an excess stays as credit that reduces the next months.
+    """
+    today = today or date.today()
+    paid_total = round(sum(p.value for p in crud.get_payments(db)), 2)
+    months = month_settlements(db, today, first)
 
     billed_total = round(sum(m["owed"] for m in months), 2)
     return {

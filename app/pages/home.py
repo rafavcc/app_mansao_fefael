@@ -12,6 +12,7 @@ from app.components import (
 )
 from app.database import get_session
 from app.formatting import format_brl
+from app.payments import attach_settlements
 from app.theme import page_container
 
 
@@ -64,6 +65,7 @@ def build_home() -> None:
                 month.value,
                 int(year.value),
             )
+            attach_settlements(db, [detail])
 
         content.clear()
 
