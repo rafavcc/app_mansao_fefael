@@ -10,7 +10,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 DEFAULT_BASE_URL = "http://192.168.0.33:8889/v1"
-DEFAULT_MODEL = "unsloth/gemma-4-12b-it-GGUF:UD-Q4_K_XL"
+DEFAULT_MODEL = "unsloth/Qwen3.5-9B-GGUF"
 REQUEST_TIMEOUT_S = 600.0
 MODELS_TIMEOUT_S = 10.0
 

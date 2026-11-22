@@ -307,7 +307,7 @@ Chaves do `.env` (na raiz; variáveis de ambiente reais têm prioridade):
 ```
 CASA_LLM_BASE_URL=http://192.168.0.33:8889/v1
 CASA_LLM_API_KEY=sk-unsloth-...
-CASA_LLM_MODEL=unsloth/gemma-4-12b-it-GGUF:UD-Q4_K_XL
+CASA_LLM_MODEL=unsloth/Qwen3.5-9B-GGUF
 ```
 
 Medições com uma página real (gemma-4-12b, servidor na rede local, 8 linhas):
